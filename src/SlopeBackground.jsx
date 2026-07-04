@@ -58,6 +58,32 @@ const OV_CONVO_DOTS = 5, OV_DOT_TRAVEL = 1.8, OV_DOT_STAGGER = 0.3;
 const OV_CONVO_DUR = (OV_CONVO_DOTS - 1) * OV_DOT_STAGGER + OV_DOT_TRAVEL;
 const OV_A0 = Math.PI * 0.75, OV_A1 = Math.PI * 2.25; // 270° dial, gap at the bottom
 
+// ---- LLM research "grounded repair constellation" motif (03, right of copy) ----
+// a reticle walks a crooked wireframe; each landing grounds an axis-aligned, labeled
+// detection bbox (the frozen model's scaffold) and the element snaps into it,
+// then box centers link into the site's constellation grammar
+const LG_INK = '23,34,47';
+const LG_ELS = [
+  { x: 0.04, y: 0.055, w: 0.92, h: 0.125, rot: -0.038, lab: 'NAV', conf: '0.98' },
+  { x: 0.06, y: 0.155, w: 0.56, h: 0.345, rot: 0.034, lab: 'HERO', conf: '0.94' },
+  { x: 0.585, y: 0.215, w: 0.335, h: 0.165, rot: -0.052, lab: 'CARD', conf: '0.91' },
+  { x: 0.585, y: 0.360, w: 0.335, h: 0.145, rot: 0.046, lab: 'CARD', conf: '0.88' },
+  { x: 0.06, y: 0.475, w: 0.35, h: 0.115, rot: -0.044, lab: 'INPUT', conf: '0.93' },
+  { x: 0.06, y: 0.570, w: 0.23, h: 0.105, rot: 0.062, lab: 'BUTTON', conf: '0.97', win: 1 },
+];
+const LG_PAIRS = [[0, 1], [0, 2], [1, 4], [2, 3], [3, 1], [4, 5], [1, 5]];
+const LG_BASE = (i) => 0.08 + i * 0.125; // reticle arrival per element, in grow-space
+const star4 = (ctx, x, y, r) => {
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 4;
+    const rr = i % 2 === 0 ? r : r * 0.36;
+    const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+    if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+};
+
 class SlopeBackground extends Component {
   static defaultProps = {
     carve: 1,
@@ -79,6 +105,8 @@ class SlopeBackground extends Component {
     this.medRef = createRef();
     this.llmRef = createRef();
     this.llmSubRef = createRef();
+    this.dropRef = createRef();
+    this.dropSubRef = createRef();
     this.dist = 0;
     this.p = 0; // smoothed scroll progress 0..1
     this.pRaw = 0;
@@ -177,6 +205,7 @@ class SlopeBackground extends Component {
     // Ovis patient-constellation engine (check-in conversations -> classifications)
     this.ovisEng = { elapsed: 0, convo: null, readings: [], next: 1.6, ix: 0 };
     this.lipEl = document.querySelector('[data-screen-label="The lip"]');
+    this.llmEl = document.querySelector('[data-screen-label="LLM research"]');
     this.takeEl = document.querySelector('[data-screen-label="Takeoff"]');
     this.airEl = document.querySelector('[data-screen-label="Airborne"]');
     this.landEl = document.querySelector('[data-screen-label="The landing"]');
@@ -476,12 +505,15 @@ class SlopeBackground extends Component {
     this.drawGraph(t);
     // Ovis patient constellation + wellness dial (left of "It rises ahead")
     this.drawOvis(t, dt);
+    // LLM research: grounded repair constellation (right of the LLM copy)
+    this.drawLLM(t);
   };
 
   syncHeadlineWidth() {
     this.syncTwoLineHeadline(this.tdkRef, this.mlRef);
     this.syncTwoLineHeadline(this.ovisRef, this.medRef);
     this.syncTwoLineHeadline(this.llmRef, this.llmSubRef);
+    this.syncTwoLineHeadline(this.dropRef, this.dropSubRef);
   }
 
   syncTwoLineHeadline(shortRef, longRef) {
@@ -913,6 +945,171 @@ class SlopeBackground extends Component {
     }
   }
 
+  drawLLM(t) {
+    const gctx = this.gctx;
+    if (!gctx || !this.llmEl) return;
+    const W = this.W, H = this.H;
+    const r = this.llmEl.getBoundingClientRect();
+    const center = r.top + r.height / 2;
+    const grow = Math.max(0, Math.min(1, (H - center) / (H * 0.55)));
+    const vis = Math.max(0, Math.min(1, 1 - Math.abs(center - H * 0.5) / (H * 0.62)));
+    if (vis <= 0.002 || grow <= 0.002) return;
+    const A = vis;
+
+    const gx = W * 0.52, gy = H * 0.16, gw = W * 0.42, gh = H * 0.66;
+    const fr = smooth(0, 0.06, grow);
+    gctx.strokeStyle = `rgba(${OV_EDGE},${(0.22 * fr * A).toFixed(3)})`;
+    gctx.lineWidth = 1;
+    gctx.strokeRect(gx, gy, gw, gh);
+
+    const starR = Math.min(W, H) * 0.011;
+    const chipH = Math.max(13, H * 0.026);
+    const chipFont = Math.max(9, H * 0.015);
+    const rects = LG_ELS.map((e) => ({ x: gx + e.x * gw, y: gy + e.y * gh, w: e.w * gw, h: e.h * gh }));
+    const centers = rects.map((rc) => [rc.x + rc.w / 2, rc.y + rc.h / 2]);
+    let repairedSum = 0;
+
+    LG_ELS.forEach((e, i) => {
+      const rc = rects[i];
+      const b = LG_BASE(i);
+      const ghost = smooth(0.01, 0.05, grow);
+      const la = smooth(b + 0.095, b + 0.135, grow); // label chip, as the border closes
+      const rep = smooth(b + 0.09, b + 0.17, grow);  // element snaps straight
+      repairedSum += rep;
+
+      // the element itself — a crooked ghost that dissolves as it snaps into its box,
+      // leaving only the stars + dashed bbox behind
+      const ghostA = 0.30 * (1 - rep) * ghost * A;
+      if (ghostA > 0.01) {
+        const ecx = rc.x + rc.w / 2, ecy = rc.y + rc.h / 2;
+        gctx.save();
+        gctx.translate(ecx, ecy);
+        gctx.rotate(e.rot * (1 - rep));
+        gctx.strokeStyle = `rgba(${OV_SLATE},${ghostA.toFixed(3)})`;
+        gctx.lineWidth = 1;
+        gctx.strokeRect(-rc.w / 2, -rc.h / 2, rc.w, rc.h);
+        gctx.restore();
+      }
+
+      if (smooth(b, b + 0.04, grow) <= 0.01) return;
+      // corner stars — the grounding marks land first, axis-aligned
+      const cornerPts = [[rc.x, rc.y], [rc.x + rc.w, rc.y], [rc.x + rc.w, rc.y + rc.h], [rc.x, rc.y + rc.h]];
+      cornerPts.forEach(([px, py], j) => {
+        const cs = smooth(b + j * 0.008, b + j * 0.008 + 0.028, grow);
+        if (cs <= 0.01) return;
+        const pop = 1 + (1 - cs) * 0.8;
+        const tw = 1 + Math.sin(t * 2.1 + px * 0.05 + py * 0.07) * 0.09;
+        star4(gctx, px, py, starR * cs * pop * tw);
+        gctx.fillStyle = e.win ? `rgba(${OV_INKB},${(0.92 * cs * A).toFixed(3)})` : `rgba(${LG_INK},${(0.8 * cs * A).toFixed(3)})`;
+        gctx.fill();
+        if (e.win) {
+          const gl = gctx.createRadialGradient(px, py, 0, px, py, starR * 3);
+          gl.addColorStop(0, `rgba(${OV_INKB},${(0.25 * cs * A).toFixed(3)})`);
+          gl.addColorStop(1, `rgba(${OV_INKB},0)`);
+          gctx.fillStyle = gl;
+          gctx.beginPath(); gctx.arc(px, py, starR * 3, 0, 7); gctx.fill();
+        }
+      });
+      // dashed detection box — once all four stars have landed, the border
+      // extends clockwise around the perimeter from the top-left star
+      const db = smooth(b + 0.055, b + 0.115, grow);
+      if (db > 0.01) {
+        gctx.setLineDash([4, 5]);
+        gctx.strokeStyle = e.win ? `rgba(${OV_INKB},${(0.78 * A).toFixed(3)})` : `rgba(${OV_EDGE},${(0.5 * A).toFixed(3)})`;
+        gctx.lineWidth = e.win ? 1.6 : 1.1;
+        const segs = [
+          [rc.x, rc.y, rc.x + rc.w, rc.y],
+          [rc.x + rc.w, rc.y, rc.x + rc.w, rc.y + rc.h],
+          [rc.x + rc.w, rc.y + rc.h, rc.x, rc.y + rc.h],
+          [rc.x, rc.y + rc.h, rc.x, rc.y],
+        ];
+        let remain = db * 2 * (rc.w + rc.h);
+        gctx.beginPath();
+        for (const [x0, y0, x1, y1] of segs) {
+          if (remain <= 0) break;
+          const len = Math.hypot(x1 - x0, y1 - y0);
+          const f = Math.min(1, remain / len);
+          gctx.moveTo(x0, y0);
+          gctx.lineTo(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f);
+          remain -= len;
+        }
+        gctx.stroke();
+        gctx.setLineDash([]);
+      }
+      // class-confidence chip, top-left, detector style
+      if (la > 0.01) {
+        gctx.font = `600 ${chipFont}px ui-monospace, Menlo, monospace`;
+        const txt = `${e.lab} ${e.conf}`;
+        const tw2 = gctx.measureText(txt).width;
+        gctx.fillStyle = e.win ? `rgba(${OV_INKB},${(0.92 * la * A).toFixed(3)})` : `rgba(${LG_INK},${(0.85 * la * A).toFixed(3)})`;
+        gctx.fillRect(rc.x, rc.y - chipH, tw2 + chipH * 0.7, chipH);
+        gctx.fillStyle = `rgba(242,246,251,${(0.95 * la * A).toFixed(3)})`;
+        gctx.fillText(txt, rc.x + chipH * 0.35, rc.y - chipH * 0.28);
+      }
+    });
+
+    // constellation: grounded box centers link once the sweep is done
+    LG_PAIRS.forEach(([a, b2], k) => {
+      const ce = smooth(0.82 + k * 0.022, 0.88 + k * 0.022, grow);
+      if (ce <= 0.01) return;
+      const [ax, ay] = centers[a], [bx, by] = centers[b2];
+      const ex = ax + (bx - ax) * ce, ey = ay + (by - ay) * ce;
+      gctx.setLineDash([2, 5]);
+      gctx.strokeStyle = `rgba(${OV_SLATE},${(0.35 * ce * A).toFixed(3)})`;
+      gctx.lineWidth = 1;
+      gctx.beginPath(); gctx.moveTo(ax, ay); gctx.lineTo(ex, ey); gctx.stroke();
+      gctx.setLineDash([]);
+    });
+    centers.forEach(([x, y], i) => {
+      const na = smooth(0.83 + i * 0.02, 0.89 + i * 0.02, grow);
+      if (na <= 0.01) return;
+      const win = LG_ELS[i].win;
+      gctx.fillStyle = win ? `rgba(${OV_INKB},${(0.95 * na * A).toFixed(3)})` : `rgba(${OV_SLATE},${(0.7 * na * A).toFixed(3)})`;
+      gctx.beginPath(); gctx.arc(x, y, (win ? 4.4 : 3) * na, 0, 7); gctx.fill();
+    });
+
+    // reticle traveling between box centers
+    const N = LG_ELS.length;
+    const path = smooth(0.06, 0.80, grow) * (N - 1);
+    const i0 = Math.min(N - 2, Math.floor(path)), f = smooth(0, 1, path - i0);
+    const rx = centers[i0][0] + (centers[i0 + 1][0] - centers[i0][0]) * f;
+    const ry = centers[i0][1] + (centers[i0 + 1][1] - centers[i0][1]) * f;
+    const ra = smooth(0.02, 0.07, grow) * (1 - smooth(0.80, 0.86, grow)) * A;
+    if (ra > 0.01) {
+      const rr = Math.min(W, H) * 0.02;
+      gctx.strokeStyle = `rgba(${OV_INKB},${(0.9 * ra).toFixed(3)})`;
+      gctx.lineWidth = 1.4;
+      gctx.beginPath(); gctx.arc(rx, ry, rr, 0, 7); gctx.stroke();
+      [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dx, dy]) => {
+        gctx.beginPath();
+        gctx.moveTo(rx + dx * rr * 0.55, ry + dy * rr * 0.55);
+        gctx.lineTo(rx + dx * rr * 1.45, ry + dy * rr * 1.45);
+        gctx.stroke();
+      });
+      gctx.fillStyle = `rgba(${OV_INKB},${(0.9 * ra).toFixed(3)})`;
+      gctx.beginPath(); gctx.arc(rx, ry, 1.6, 0, 7); gctx.fill();
+      const near = Math.abs(path - Math.round(path));
+      if (near < 0.12) {
+        gctx.strokeStyle = `rgba(${OV_INKB},${(0.4 * (1 - near / 0.12) * ra).toFixed(3)})`;
+        gctx.beginPath(); gctx.arc(rx, ry, rr * (1.6 + near * 6), 0, 7); gctx.stroke();
+      }
+    }
+
+    // fidelity readout above the wireframe
+    const frac = repairedSum / N;
+    const ha = smooth(0.10, 0.2, grow);
+    if (ha > 0.01) {
+      gctx.font = `600 ${Math.max(12, W * 0.010)}px ui-monospace, Menlo, monospace`;
+      gctx.fillStyle = `rgba(${OV_INKB},${(0.9 * ha * A).toFixed(3)})`;
+      gctx.fillText(`CLIP FIDELITY +${Math.round(29 * frac)}%`, gx, gy - Math.max(14, H * 0.045));
+      if (frac > 0.98) {
+        gctx.font = `${Math.max(9, W * 0.0072)}px ui-monospace, Menlo, monospace`;
+        gctx.fillStyle = `rgba(${OV_EDGE},${(0.8 * A).toFixed(3)})`;
+        gctx.fillText('p < 0.01 · 128 PAIRED TESTS · ZERO-SHOT', gx + W * 0.165, gy - Math.max(14, H * 0.045));
+      }
+    }
+  }
+
   drawGlyph(ctx, f, x, y, rad, p) {
     const rot = f.rot + f.rotV * p * 15;
     ctx.save();
@@ -1071,20 +1268,34 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
+          {/* spacer — lets the Ovis constellation scroll off before LLM copy arrives */}
+          <div style={{ height: '60vh' }} />
+
           <section data-screen-label="LLM research" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
             <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>03 / FRONTIER MODELS</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>03 / POINT · CLICK · REPAIR</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
                 <span ref={this.llmRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>LLM</span>
                 <span ref={this.llmSubRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>Research</span>
               </h2>
-              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Exploring the boundaries of large language models&mdash;reasoning, alignment, and efficient inference. Building tools that make frontier AI more accessible and useful in real-world workflows.</p>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</p>
+            </div>
+          </section>
+
+          <section data-screen-label="DropIn" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
+            <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'right', willChange: 'transform, opacity' }}>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>04 / CAPTURE EVERYTHING</div>
+              <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span ref={this.dropRef} style={{ fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>DropIn</span>
+                <span ref={this.dropSubRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
+              </h2>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Real-time mocap on consumer hardware&mdash;no $50k optical rigs, just an iPhone. A quaternion-based kinematic solver reconstructs rider kinematics from raw 100Hz IMU streams with sub-50ms latency, while a custom backpressure protocol sheds stale frames to keep every joint coherent. WebGL telemetry turns each run into actionable coaching.</p>
             </div>
           </section>
 
           <section data-screen-label="Takeoff" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>04 / TAKEOFF</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>05 / TAKEOFF</div>
               <h2 style={{ margin: 0, fontSize: 'clamp(56px, 11vw, 170px)', lineHeight: 0.9, textTransform: 'uppercase' }}>Send it</h2>
             </div>
           </section>
@@ -1104,16 +1315,35 @@ class SlopeBackground extends Component {
             data-screen-label="Landing page"
             style={{ minHeight: '100vh', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: '14vh 8vw', textAlign: 'center', position: 'relative' }}
           >
-            <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>05 / THE LANDING — STOMPED</div>
-              <h2 style={{ margin: 0, fontSize: 'clamp(56px, 10vw, 150px)', lineHeight: 0.9, textTransform: 'uppercase' }}>White room</h2>
-              <p style={{ margin: 0, maxWidth: 480, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Buried to the waist, grinning. Every run ends in powder — start yours.</p>
+            <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, willChange: 'transform, opacity' }}>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>06 / THE LANDING — STOMPED</div>
+              <h2 style={{ margin: 0, fontSize: 'clamp(56px, 10vw, 150px)', lineHeight: 0.9, textTransform: 'uppercase' }}>Let&rsquo;s talk</h2>
+              <div style={{ width: 48, height: 1.5, background: '#c8d4e0' }} />
+              <p style={{ margin: 0, maxWidth: 480, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Got a project, a question, or just want to say hey&mdash;I&rsquo;d love to hear from you.</p>
+              <div style={{ display: 'flex', gap: 48, marginTop: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+                  <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.4em', color: '#4a5c72' }}>EMAIL</div>
+                  <a href="mailto:ayhisaac@gmail.com" style={{ fontFamily: mono, fontSize: 14, color: '#17222f', textDecoration: 'none' }}>ayhisaac@gmail.com</a>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+                  <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.4em', color: '#4a5c72' }}>GITHUB</div>
+                  <a href="https://github.com/isaacau502" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 14, color: '#17222f', textDecoration: 'none' }}>@isaacau502</a>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
+                  <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.4em', color: '#4a5c72' }}>LINKEDIN</div>
+                  <a href="https://linkedin.com/in/isaacayh" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 14, color: '#17222f', textDecoration: 'none' }}>/in/isaacayh</a>
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
-                <a href="#" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', background: '#17222f', color: '#ffffff', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>BOOK A RUN</a>
-                <a href="#" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', border: '2px solid #17222f', color: '#17222f', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>WATCH THE LINE</a>
+                <a href="mailto:ayhisaac@gmail.com" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', background: '#17222f', color: '#ffffff', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>EMAIL</a>
+                <a href="#" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', border: '2px solid #17222f', color: '#17222f', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>RESUME ↓</a>
               </div>
             </div>
-            <div style={{ position: 'absolute', bottom: 22, fontFamily: mono, fontSize: 11, letterSpacing: '0.3em', color: '#8fa2b8' }}>CARVE — WINTER 26/27</div>
+            <div style={{ position: 'absolute', bottom: 22, display: 'flex', alignItems: 'center', gap: 10, fontFamily: mono, fontSize: 11, letterSpacing: '0.3em', color: '#8fa2b8' }}>
+              <span>© ISAAC AU 2026</span>
+              <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#c8d4e0', display: 'inline-block' }} />
+              <span>BUILT WITH CLAUDE CODE & CLAUDE DESIGN</span>
+            </div>
           </section>
 
         </div>

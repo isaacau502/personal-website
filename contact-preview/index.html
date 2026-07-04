@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contact Page Layouts — Pick One</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #17222f;
+    --slate: #4a5c72;
+    --muted: #33455c;
+    --line: #c8d4e0;
+    --accent: #28569e;
+    --bg: #ffffff;
+    --mono: ui-monospace, 'Menlo', monospace;
+    --display: 'Archivo Black', sans-serif;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--mono);
+    background: #f2f4f7;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- picker chrome ---- */
+  .picker-header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(242,244,247,0.92); backdrop-filter: blur(12px);
+    padding: 20px 40px;
+    display: flex; align-items: center; gap: 24;
+    border-bottom: 1px solid var(--line);
+  }
+  .picker-header h1 {
+    font-family: var(--display); font-size: 18px; color: var(--ink); letter-spacing: 0.04em;
+  }
+  .picker-header span {
+    font-size: 12px; color: var(--slate); letter-spacing: 0.25em;
+  }
+
+  .layout-card {
+    position: relative;
+    margin: 48px auto;
+    max-width: 1280px;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+  }
+  .layout-label {
+    position: absolute; top: 16px; left: 20px; z-index: 10;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.35em;
+    color: var(--slate); background: rgba(255,255,255,0.85); backdrop-filter: blur(6px);
+    padding: 6px 14px; border-radius: 6px;
+  }
+  .layout-frame {
+    width: 100%; min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ---- shared contact elements ---- */
+  .section-tag {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.35em; color: var(--slate);
+  }
+  .big-heading {
+    font-family: var(--display); font-size: clamp(48px, 8vw, 120px);
+    line-height: 0.9; text-transform: uppercase; color: var(--ink);
+  }
+  .sub-heading {
+    font-family: var(--display); font-size: clamp(18px, 2.4vw, 32px);
+    text-transform: uppercase; color: var(--ink); line-height: 1;
+  }
+  .body-text {
+    font-family: var(--mono); font-size: 14px; line-height: 1.7; color: var(--muted);
+    max-width: 420px;
+  }
+  .link-row {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+  }
+  .link-item {
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.15em;
+    color: var(--accent); text-decoration: none;
+    transition: color 0.2s;
+  }
+  .link-item:hover { color: var(--ink); }
+  .link-sep { width: 1px; height: 14px; background: var(--line); }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; padding: 16px 32px;
+    background: var(--ink); color: #fff;
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.2em;
+    text-decoration: none; border: none; cursor: pointer;
+    transition: background 0.25s;
+  }
+  .btn-primary:hover { background: #28394e; }
+  .btn-outline {
+    display: inline-flex; align-items: center; padding: 16px 32px;
+    border: 2px solid var(--ink); color: var(--ink);
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.2em;
+    text-decoration: none; background: transparent; cursor: pointer;
+    transition: background 0.25s, color 0.25s;
+  }
+  .btn-outline:hover { background: var(--ink); color: #fff; }
+
+  .input-field {
+    width: 100%; padding: 14px 0; border: none;
+    border-bottom: 1.5px solid var(--line);
+    font-family: var(--mono); font-size: 14px; color: var(--ink);
+    background: transparent; outline: none;
+    transition: border-color 0.25s;
+  }
+  .input-field::placeholder { color: #a0b0c2; }
+  .input-field:focus { border-bottom-color: var(--ink); }
+
+  textarea.input-field {
+    resize: vertical; min-height: 100px;
+    border: 1.5px solid var(--line); padding: 14px;
+    border-radius: 0;
+  }
+  textarea.input-field:focus { border-color: var(--ink); }
+
+  .footer-line {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; color: #8fa2b8;
+  }
+
+  /* decorative vertical line */
+  .vline {
+    width: 1px; background: var(--line);
+  }
+
+  /* =========================================
+     LAYOUT A — Bold left headline + right form
+     ========================================= */
+  .layout-a {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+  }
+  .layout-a .left {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 10vh 6vw;
+    gap: 22px;
+  }
+  .layout-a .right {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 10vh 6vw;
+    gap: 28px;
+    border-left: 1px solid var(--line);
+  }
+  .layout-a .social-row {
+    display: flex; gap: 24px; margin-top: 12px;
+  }
+  .layout-a .social-icon {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1.5px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--slate);
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .layout-a .social-icon:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* =========================================
+     LAYOUT B — Centered minimal, no form
+     ========================================= */
+  .layout-b {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; text-align: center;
+    padding: 10vh 6vw; gap: 28px;
+  }
+  .layout-b .body-text { text-align: center; }
+  .layout-b .divider {
+    width: 48px; height: 1.5px; background: var(--line);
+  }
+  .layout-b .contact-grid {
+    display: grid; grid-template-columns: repeat(3, auto);
+    gap: 48px; margin-top: 12px;
+  }
+  .layout-b .contact-block {
+    display: flex; flex-direction: column; gap: 6px; text-align: center;
+  }
+  .layout-b .contact-block .label {
+    font-size: 10px; letter-spacing: 0.4em; color: var(--slate);
+  }
+  .layout-b .contact-block .value {
+    font-size: 14px; color: var(--ink); text-decoration: none;
+  }
+  .layout-b .contact-block .value:hover { color: var(--accent); }
+  .layout-b .btn-row { display: flex; gap: 14px; margin-top: 8px; }
+
+  /* =========================================
+     LAYOUT C — Asymmetric with large email CTA
+     ========================================= */
+  .layout-c {
+    display: flex; flex-direction: column;
+    min-height: 100vh; padding: 12vh 8vw 6vh;
+    justify-content: space-between;
+  }
+  .layout-c .top-section {
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .layout-c .email-mega {
+    font-family: var(--display); font-size: clamp(28px, 4.5vw, 64px);
+    text-transform: none; color: var(--ink); text-decoration: none;
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 8px; width: fit-content;
+    transition: color 0.25s, border-color 0.25s;
+    line-height: 1.1;
+  }
+  .layout-c .email-mega:hover { color: var(--accent); border-color: var(--accent); }
+  .layout-c .mid-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 40px; margin-top: 8vh;
+  }
+  .layout-c .mid-block {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .layout-c .mid-block .label {
+    font-size: 10px; letter-spacing: 0.4em; color: var(--slate);
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .layout-c .mid-block a {
+    font-size: 14px; color: var(--ink); text-decoration: none; line-height: 2;
+  }
+  .layout-c .mid-block a:hover { color: var(--accent); }
+  .layout-c .bottom-row {
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+
+  /* =========================================
+     LAYOUT D — Split diagonal / conversational
+     ========================================= */
+  .layout-d {
+    display: grid; grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+  }
+  .layout-d .left-dark {
+    background: var(--ink); color: #f4f8fd;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 10vh 5vw; gap: 24px;
+  }
+  .layout-d .left-dark .section-tag { color: #8fa2b8; }
+  .layout-d .left-dark .big-heading { color: #f4f8fd; }
+  .layout-d .left-dark .body-text { color: #b4c6da; }
+  .layout-d .left-dark .link-item { color: #7eb3e8; }
+  .layout-d .left-dark .link-sep { background: rgba(255,255,255,0.15); }
+  .layout-d .right-form {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 10vh 5vw; gap: 24px;
+  }
+  .layout-d .form-heading {
+    font-family: var(--display); font-size: 24px; text-transform: uppercase; color: var(--ink);
+  }
+  .layout-d .right-form .input-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+
+  @media (max-width: 860px) {
+    .layout-a, .layout-d { grid-template-columns: 1fr; }
+    .layout-a .right { border-left: none; border-top: 1px solid var(--line); }
+    .layout-c .mid-grid { grid-template-columns: 1fr; }
+    .layout-b .contact-grid { grid-template-columns: 1fr; gap: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="picker-header">
+  <h1>Contact Page Layouts</h1>
+  <span>PICK YOUR FAVOURITE</span>
+</div>
+
+<!-- ====== LAYOUT A ====== -->
+<div class="layout-card">
+  <div class="layout-label">LAYOUT A — SPLIT FORM</div>
+  <div class="layout-frame layout-a">
+    <div class="left">
+      <div class="section-tag">05 / THE LANDING — STOMPED</div>
+      <div class="big-heading">Let's<br>talk</div>
+      <p class="body-text">Got a project, a question, or just want to say hey — I'd love to hear from you.</p>
+      <div class="link-row">
+        <a class="link-item" href="#">GITHUB →</a>
+        <div class="link-sep"></div>
+        <a class="link-item" href="#">LINKEDIN →</a>
+        <div class="link-sep"></div>
+        <a class="link-item" href="#">TWITTER →</a>
+      </div>
+      <div class="social-row">
+        <a class="social-icon" href="#" title="Email">✉</a>
+        <a class="social-icon" href="#" title="Resume">CV</a>
+      </div>
+    </div>
+    <div class="right">
+      <div class="section-tag">DROP A LINE</div>
+      <input class="input-field" type="text" placeholder="Name" />
+      <input class="input-field" type="email" placeholder="Email" />
+      <textarea class="input-field" placeholder="What's on your mind?"></textarea>
+      <div><button class="btn-primary">SEND MESSAGE</button></div>
+      <div class="footer-line" style="margin-top: auto;">CARVE — WINTER 26/27</div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== LAYOUT B ====== -->
+<div class="layout-card">
+  <div class="layout-label">LAYOUT B — CENTERED MINIMAL</div>
+  <div class="layout-frame layout-b">
+    <div class="section-tag">05 / THE LANDING — STOMPED</div>
+    <div class="big-heading">White room</div>
+    <div class="divider"></div>
+    <p class="body-text">Buried to the waist, grinning. Every run ends in powder — start yours.</p>
+    <div class="contact-grid">
+      <div class="contact-block">
+        <div class="label">EMAIL</div>
+        <a class="value" href="#">isaac@example.com</a>
+      </div>
+      <div class="contact-block">
+        <div class="label">GITHUB</div>
+        <a class="value" href="#">@isaacau</a>
+      </div>
+      <div class="contact-block">
+        <div class="label">LINKEDIN</div>
+        <a class="value" href="#">/in/isaacau</a>
+      </div>
+    </div>
+    <div class="btn-row">
+      <a class="btn-primary" href="#">BOOK A RUN</a>
+      <a class="btn-outline" href="#">RESUME ↓</a>
+    </div>
+    <div class="footer-line">CARVE — WINTER 26/27</div>
+  </div>
+</div>
+
+<!-- ====== LAYOUT C ====== -->
+<div class="layout-card">
+  <div class="layout-label">LAYOUT C — BIG EMAIL CTA</div>
+  <div class="layout-frame layout-c">
+    <div class="top-section">
+      <div class="section-tag">05 / GET IN TOUCH</div>
+      <div class="big-heading" style="font-size: clamp(40px, 6vw, 88px);">Say hello</div>
+      <a class="email-mega" href="mailto:isaac@example.com">isaac@example.com</a>
+    </div>
+    <div class="mid-grid">
+      <div class="mid-block">
+        <div class="label">SOCIALS</div>
+        <a href="#">GitHub</a>
+        <a href="#">LinkedIn</a>
+        <a href="#">Twitter / X</a>
+      </div>
+      <div class="mid-block">
+        <div class="label">LOCATION</div>
+        <a href="#">Pittsburgh, PA</a>
+        <a href="#">Carnegie Mellon University</a>
+      </div>
+      <div class="mid-block">
+        <div class="label">CURRENTLY</div>
+        <a href="#">Open to opportunities</a>
+        <a href="#">Available for freelance</a>
+      </div>
+    </div>
+    <div class="bottom-row">
+      <div class="footer-line">CARVE — WINTER 26/27</div>
+      <a class="btn-outline" href="#">DOWNLOAD RESUME ↓</a>
+    </div>
+  </div>
+</div>
+
+<!-- ====== LAYOUT D ====== -->
+<div class="layout-card">
+  <div class="layout-label">LAYOUT D — DARK / LIGHT SPLIT</div>
+  <div class="layout-frame layout-d">
+    <div class="left-dark">
+      <div class="section-tag">05 / THE LANDING</div>
+      <div class="big-heading" style="font-size: clamp(40px, 6vw, 88px);">White<br>room</div>
+      <p class="body-text">Buried to the waist, grinning. Every run ends in powder.</p>
+      <div class="link-row" style="margin-top: 8px;">
+        <a class="link-item" href="#">GITHUB →</a>
+        <div class="link-sep"></div>
+        <a class="link-item" href="#">LINKEDIN →</a>
+        <div class="link-sep"></div>
+        <a class="link-item" href="#">TWITTER →</a>
+      </div>
+      <div class="footer-line" style="margin-top: auto;">CARVE — WINTER 26/27</div>
+    </div>
+    <div class="right-form">
+      <div class="form-heading">Start a conversation</div>
+      <div class="input-row">
+        <input class="input-field" type="text" placeholder="Name" />
+        <input class="input-field" type="email" placeholder="Email" />
+      </div>
+      <input class="input-field" type="text" placeholder="Subject" />
+      <textarea class="input-field" placeholder="Your message..."></textarea>
+      <div style="display: flex; gap: 14px;">
+        <button class="btn-primary">SEND IT</button>
+        <a class="btn-outline" href="#">RESUME ↓</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="padding: 60px; text-align: center;">
+  <div class="footer-line" style="color: #4a5c72;">SCROLL UP TO COMPARE · TELL ME WHICH ONE YOU WANT</div>
+</div>
+
+</body>
+</html>
