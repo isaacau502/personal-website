@@ -1,0 +1,38 @@
+// Cloudflare Workers config — this repo is a git-linked Worker (Workers
+// Builds). Build: `npm run build` (Vite → dist/), deploy: `npx wrangler
+// deploy`. worker/index.js routes /api/* to the constellation-signature
+// pipeline; everything else serves from dist/ via the assets binding.
+//
+// Secrets (NOT in this file — set with `wrangler secret put`):
+//   ANTHROPIC_API_KEY   — generation + vision moderation (Haiku)
+//   TURNSTILE_SECRET    — optional; server skips verification when unset
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "personal-website",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SKY",
+      "id": "4932248fa44a4b6c97537b6c1db0451e"
+    }
+  ],
+  // Workers AI: the free-tier fallback provider (unused while
+  // PROVIDER=anthropic, but keeps the no-key degraded mode one var away)
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "PROVIDER": "anthropic",
+    "RATE_LIMIT_PER_10MIN": "6",
+    "SPEND_CAP": "2000"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
