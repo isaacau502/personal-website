@@ -14,6 +14,7 @@ function mockCtx() {
   const ctx = {};
   for (const m of [
     'beginPath', 'moveTo', 'lineTo', 'stroke', 'arc', 'fill',
+    'quadraticCurveTo', 'closePath',
     'createRadialGradient', 'fillText', 'setLineDash',
   ]) ctx[m] = record(m);
   ctx.calls = calls;

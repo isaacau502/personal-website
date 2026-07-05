@@ -64,18 +64,31 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     if (cr <= 0.002) continue;
     const x = X(s), y = Y(s);
     const newest = s.id === newestId;
-    const tw = 1 + Math.sin(t * (1.1 + s.x * 0.9) + s.y * 20 + k * 2.1) * 0.14;
-    const twA = 0.72 + 0.28 * Math.sin(t * (1.6 + s.y * 1.2) + s.x * 31 + k * 1.7);
+    const tw = 1 + Math.sin(t * (2.3 + s.x * 1.6) + s.y * 20 + k * 2.1) * 0.16;
+    const twA = 0.68 + 0.32 * Math.sin(t * (3.1 + s.y * 2.2) + s.x * 31 + k * 1.7);
     const rad = baseR * (0.5 + s.size * 0.75) * cr * tw;
     const glowCol = newest ? palette.amber : palette.glow;
-    const glowR = rad * (newest ? 3.4 : 2.6);
-    const glowA = (newest ? 0.3 : 0.16) * alpha * cr * (0.8 + 0.2 * twA);
+    const glowR = rad * (newest ? 3.6 : 3.0);
+    const glowA = (newest ? 0.34 : 0.22) * alpha * cr * (0.7 + 0.3 * twA);
     const gl = ctx.createRadialGradient(x, y, 0, x, y, glowR);
     gl.addColorStop(0, `rgba(${glowCol},${glowA.toFixed(3)})`);
     gl.addColorStop(1, `rgba(${glowCol},0)`);
     ctx.fillStyle = gl;
     ctx.beginPath();
     ctx.arc(x, y, glowR, 0, 7);
+    ctx.fill();
+    // diamond flare — a pinched four-point halo that breathes with the
+    // twinkle; this is what makes a star read as GLOWING, not just lit
+    const fl = rad * (newest ? 5.2 : 4.4) * (0.75 + 0.35 * twA);
+    const pinch = fl * 0.14;
+    ctx.fillStyle = `rgba(${glowCol},${((newest ? 0.34 : 0.24) * alpha * cr * twA).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.moveTo(x, y - fl);
+    ctx.quadraticCurveTo(x + pinch, y - pinch, x + fl, y);
+    ctx.quadraticCurveTo(x + pinch, y + pinch, x, y + fl);
+    ctx.quadraticCurveTo(x - pinch, y + pinch, x - fl, y);
+    ctx.quadraticCurveTo(x - pinch, y - pinch, x, y - fl);
+    ctx.closePath();
     ctx.fill();
     ctx.fillStyle = newest
       ? `rgba(${palette.amber},${(0.95 * alpha * cr).toFixed(3)})`
