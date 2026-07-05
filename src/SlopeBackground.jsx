@@ -4,14 +4,41 @@ import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
 
 const mono = 'ui-monospace, monospace';
 
-// night-sky star chart: panel per project figure (unit-of-viewport rects)
-// + formation window in _skyGrow space (staggered, career order)
-const SKY_FIGURES = [
-  { panel: { x: 0.07, y: 0.10, w: 0.17, h: 0.30 }, win: [0.00, 0.38] }, // tdk
-  { panel: { x: 0.64, y: 0.08, w: 0.16, h: 0.27 }, win: [0.18, 0.56] }, // ovis
-  { panel: { x: 0.32, y: 0.12, w: 0.20, h: 0.24 }, win: [0.38, 0.76] }, // llm research (high center-left — clear of the invite form at 43–57% y)
-  { panel: { x: 0.76, y: 0.44, w: 0.15, h: 0.26 }, win: [0.58, 0.96] }, // dropin
+// night-sky star chart: formation window per figure in _skyGrow space
+// (staggered, career order). Panels are computed per-frame by
+// layoutSkyPanels() so every viewport keeps the figures clear of the
+// centered invite form — fixed percentages broke on wide/short windows.
+const SKY_WINDOWS = [
+  [0.00, 0.38], // tdk
+  [0.18, 0.56], // ovis
+  [0.38, 0.76], // llm research
+  [0.58, 0.96], // dropin
 ];
+
+// The invite form is a fixed ~260px-tall band centered at 50% — figures live
+// in the bands above/below it, sized to fit, aspect clamped so they never
+// stretch on wide viewports. Order matches PROJECT_CONSTELLATIONS.
+function layoutSkyPanels(W, H) {
+  const navPad = Math.max(H * 0.06, 48);
+  const labelPad = 34;                      // room for the caps label under a figure
+  const formTop = H * 0.5 - 130;
+  const formBottom = H * 0.5 + 130;
+  const upperH = Math.max(110, formTop - navPad - labelPad);
+  const ph = Math.min(H * 0.32, upperH * 0.88);
+  const slack = upperH - ph; // vertical stagger room — breaks the row-of-three
+  const lowerTop = formBottom + 16;
+  const lowerH = Math.max(90, H * 0.93 - lowerTop - labelPad);
+  const ph2 = Math.min(H * 0.28, lowerH, ph);
+  const pw = (f, h) => Math.min(W * f, h * 1.25);
+  const cx = (c, w) => W * c - w / 2;
+  const wTdk = pw(0.16, ph), wOvis = pw(0.16, ph), wLlm = pw(0.18, ph), wDrop = pw(0.12, ph2);
+  return [
+    { x0: cx(0.14, wTdk), y0: navPad + slack * 0.3, w: wTdk, h: ph },            // tdk upper-left, mid-height
+    { x0: cx(0.83, wOvis), y0: navPad + slack * 0.85, w: wOvis, h: ph },         // ovis upper-right, lower
+    { x0: cx(0.485, wLlm), y0: navPad, w: wLlm, h: ph },                         // llm upper-center, highest
+    { x0: cx(0.86, wDrop), y0: lowerTop + (lowerH - ph2) / 2, w: wDrop, h: ph2 }, // dropin lower-right
+  ];
+}
 const HEADLINE_SIZE = 'clamp(40px, 6vw, 88px)';
 
 // ---- Ovis "Patient Constellation" motif (02 / It rises ahead) ----
@@ -895,14 +922,14 @@ class SlopeBackground extends Component {
         const x = Math.min(1, Math.max(0, (v - a) / (b - a)));
         return x * x * (3 - 2 * x);
       };
+      const panels = layoutSkyPanels(W, H);
       for (let i = 0; i < PROJECT_CONSTELLATIONS.length; i++) {
         const fig = PROJECT_CONSTELLATIONS[i];
-        const { panel, win } = SKY_FIGURES[i];
+        const win = SKY_WINDOWS[i];
         const grow = smoothW(win[0], win[1], this._skyGrow);
         if (grow <= 0.002) continue;
-        drawConstellation(gctx, fig.stars, fig.edges, {
-          x0: W * panel.x, y0: H * panel.y, w: W * panel.w, h: H * panel.h,
-        }, { t: sec, grow, alpha: this._skyVis * (1 - 0.62 * (this._sigVis || 0)), label: fig.name });
+        drawConstellation(gctx, fig.stars, fig.edges, panels[i],
+          { t: sec, grow, alpha: this._skyVis * (1 - 0.5 * (this._sigVis || 0)), label: fig.name });
       }
     }
   }
