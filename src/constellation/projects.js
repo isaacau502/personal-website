@@ -104,6 +104,6 @@ const DROPIN = {
 TDK.place = { x: 0.07, y: 0.05, scale: 0.13 };
 OVIS.place = { x: 0.79, y: 0.06, scale: 0.125 };
 LLM.place = { x: 0.42, y: 0.02, scale: 0.14 };
-DROPIN.place = { x: 0.84, y: 0.44, scale: 0.11 };
+DROPIN.place = { x: 0.80, y: 0.24, scale: 0.11 };
 
 export const PROJECT_CONSTELLATIONS = [TDK, OVIS, LLM, DROPIN];
