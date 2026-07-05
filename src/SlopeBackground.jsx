@@ -764,7 +764,8 @@ class SlopeBackground extends Component {
     // then the invite fades in while the chart dims to ~38% — never to zero.
     this._sigVis = smooth(0.66, 0.76, this.sm.air) * (1 - smooth(0.80, 0.92, this.sm.air + preLand));
     if (this.sigRef.current) {
-      const sa = this._sigVis;
+      // while a constellation is forming, the form steps back (dim, inert)
+      const sa = this._sigVis * (this._signing ? 0.3 : 1);
       const sig = this.sigRef.current;
       sig.style.opacity = sa.toFixed(3);
       sig.style.pointerEvents = sa > 0.5 ? 'auto' : 'none';
@@ -834,14 +835,38 @@ class SlopeBackground extends Component {
     }
   }
 
-  // Enter submits the description; Bit C's forming animation consumes it.
+  // Enter submits the description and starts the forming animation.
   onSignatureKey = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     const value = e.target.value.trim();
     if (!value) return;
-    this._pendingSignature = value;
+    this.startSignature(value);
     e.target.blur();
+  };
+
+  // MOCK generator: hash-seeded variation of a project geometry stands in
+  // for the LLM until the API lands — same record shape, same animation.
+  startSignature = (value) => {
+    if (this._signing) return;
+    const h = [...value].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) >>> 0), 7) || 1;
+    let s = h;
+    const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    const geom = PROJECT_CONSTELLATIONS[h % PROJECT_CONSTELLATIONS.length];
+    const stars = geom.stars.map((st) => ({
+      id: st.id,
+      x: Math.max(0, Math.min(1, st.x + (r() - 0.5) * 0.09)),
+      y: Math.max(0, Math.min(1, st.y + (r() - 0.5) * 0.09)),
+      size: Math.max(0.5, Math.min(2, st.size * (0.85 + r() * 0.4))),
+    }));
+    const occupied = this.skyRecords.map((rec) => rec.place);
+    const scale = adaptiveScale(this.skyRecords.length + 1) * (0.95 + r() * 0.15);
+    this._signing = {
+      fig: { name: value, stars, edges: geom.edges },
+      place: placeInSky(occupied, scale, r),
+      newestId: stars[stars.length - 1].id,
+      born: null,
+    };
   };
 
   progEl(el) {
@@ -962,7 +987,45 @@ class SlopeBackground extends Component {
           t: sec, grow, alpha,
           label: labelFits ? rec.fig.name : null,
           labelAlpha: rec.project ? 0.75 : 0.5,
+          newestId: rec.newestId ?? null,
         });
+      }
+
+      // ---- SIGNATURE FORMING: the visitor's figure draws itself in the
+      // parted clearing above the input, holds with its name, then drifts
+      // to its placed spot. Drift targets the CURRENT parted position of
+      // its panel, so joining skyRecords at the end is seamless.
+      if (this._signing) {
+        const sgn = this._signing;
+        if (sgn.born === null) sgn.born = t;
+        const age = (t - sgn.born) / 1000;
+        const grow = smoothW(0.1, 2.4, age);
+        const drift = smoothW(3.2, 4.9, age);
+        const target = skyPanel(sgn.place, m);
+        const tOff = partingOffset(target, formRect, sig);
+        const tx = target.x0 + tOff.dx, ty = target.y0 + tOff.dy;
+        const cs = Math.max(target.w * 1.6, Math.min(W, H) * 0.24);
+        const cx0 = W / 2 - cs / 2;
+        const cy0 = H / 2 - 140 - cs; // bottom of the figure sits above the invite label
+        const panel = {
+          x0: cx0 + (tx - cx0) * drift,
+          y0: cy0 + (ty - cy0) * drift,
+          w: cs + (target.w - cs) * drift,
+          h: cs + (target.h - cs) * drift,
+        };
+        drawConstellation(gctx, sgn.fig.stars, sgn.fig.edges, panel, {
+          t: sec, grow, alpha: this._skyVis,
+          newestId: sgn.newestId,
+          label: sgn.fig.name, labelAlpha: 0.7,
+        });
+        if (drift >= 1) {
+          this.skyRecords.push({
+            fig: sgn.fig, place: sgn.place, win: [0, 0.001],
+            project: false, depth: 0.95, newestId: sgn.newestId,
+          });
+          this._signing = null;
+          if (this.sigInputRef.current) this.sigInputRef.current.value = '';
+        }
       }
     }
   }
