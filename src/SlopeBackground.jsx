@@ -295,6 +295,9 @@ class SlopeBackground extends Component {
     this.spdRef = createRef();
     this.distRef = createRef();
     this.landPageRef = createRef();
+    this.sigRef = createRef();
+    this.sigInputRef = createRef();
+    this.navRef = createRef();
     this.tdkRef = createRef();
     this.mlRef = createRef();
     this.ovisRef = createRef();
@@ -712,6 +715,30 @@ class SlopeBackground extends Component {
       el.style.transform = `translateY(${(dd * 60).toFixed(1)}px)`;
     }
 
+    // ---- SIGNATURE FORM (rides the night factor; DOM overlay, not canvas) ----
+    if (this.sigRef.current) {
+      const sa = smooth(0.45, 0.8, night);
+      const sig = this.sigRef.current;
+      sig.style.opacity = sa.toFixed(3);
+      sig.style.pointerEvents = sa > 0.5 ? 'auto' : 'none';
+      sig.style.transform = `translate(-50%, ${((1 - sa) * 26).toFixed(1)}px)`;
+      if (sa < 0.5 && this.sigInputRef.current === document.activeElement) {
+        this.sigInputRef.current.blur();
+      }
+    }
+    // nav re-inks pale while the sky is night so it stays legible
+    if (this.navRef.current) {
+      const pale = night > 0.55;
+      if (this._navPale !== pale) {
+        this._navPale = pale;
+        const nav = this.navRef.current;
+        nav.style.setProperty('--nav-ink', pale ? '#c9d6e2' : '#4a5c72');
+        nav.style.setProperty('--nav-dim', pale ? '#94aac6' : '#33455c');
+        nav.style.setProperty('--nav-line', pale ? 'rgba(201,214,226,0.45)' : '#28569e');
+        nav.style.setProperty('--nav-hover', pale ? '#f4f8fd' : '#17222f');
+      }
+    }
+
     // ---- HUD ----
     if (this.spdRef.current) {
       const kmh = Math.max(0, Math.round((28 + p * 54 + Math.min(Math.abs(this.scrollV) * 60, 20)) * Math.pow(1 - stop, 2)));
@@ -757,6 +784,16 @@ class SlopeBackground extends Component {
       short.style.fontSize = (basePx * (longWidth / shortWidth)) + 'px';
     }
   }
+
+  // Enter submits the description; Bit C's forming animation consumes it.
+  onSignatureKey = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const value = e.target.value.trim();
+    if (!value) return;
+    this._pendingSignature = value;
+    e.target.blur();
+  };
 
   progEl(el) {
     if (!el) return 0;
@@ -1743,33 +1780,61 @@ class SlopeBackground extends Component {
         </div>
 
         <style>{`
-          .nav-link { position: relative; }
+          .nav-link { position: relative; color: var(--nav-ink, #4a5c72); transition: color 0.45s ease; }
           .nav-link::after {
             content: ''; position: absolute; left: 0; bottom: -4px; height: 1px; width: 0;
-            background: #28569e; transition: width 0.22s ease;
+            background: var(--nav-line, #28569e); transition: width 0.22s ease;
           }
-          .nav-link:hover { color: #17222f; }
+          .nav-link:hover { color: var(--nav-hover, #17222f); }
           .nav-link:hover::after { width: 100%; }
+          .nav-sep { background: var(--nav-line, #28569e); transition: background 0.45s ease; }
+          .sig-input {
+            width: 100%; background: transparent; border: none;
+            border-bottom: 1px solid rgba(201,214,226,0.35);
+            padding: 10px 2px; color: #f2f6fb; text-align: center;
+            font-family: ui-monospace, Menlo, monospace; font-size: 20px;
+            outline: none; caret-color: rgba(255,214,160,0.95);
+            transition: border-color 0.25s ease;
+          }
+          .sig-input:focus { border-bottom-color: rgba(255,214,160,0.9); }
+          .sig-input::placeholder { color: rgba(201,214,226,0.28); }
         `}</style>
-        <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', fontFamily: mono, fontSize: 12, letterSpacing: '0.18em' }}>
-          <span style={{ color: '#33455c' }}>IA</span>
+        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', fontFamily: mono, fontSize: 12, letterSpacing: '0.18em' }}>
+          <span style={{ color: 'var(--nav-dim, #33455c)', transition: 'color 0.45s ease' }}>IA</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4a5c72', textDecoration: 'none' }}>
+            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
               <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block' }} />
               WORK
             </a>
-            <span style={{ width: 1, height: 12, background: '#28569e' }} />
-            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4a5c72', textDecoration: 'none' }}>
+            <span className="nav-sep" style={{ width: 1, height: 12 }} />
+            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
               <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
               PROJECTS
             </a>
-            <span style={{ width: 1, height: 12, background: '#28569e' }} />
-            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4a5c72', textDecoration: 'none' }}>
+            <span className="nav-sep" style={{ width: 1, height: 12 }} />
+            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
               <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
               CONTACT
             </a>
           </div>
         </nav>
+
+        {/* signature form — opacity/pointer-events driven per-frame by the night factor */}
+        <div
+          ref={this.sigRef}
+          style={{ position: 'fixed', left: '50%', top: '62%', transform: 'translate(-50%, 26px)', zIndex: 2, opacity: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, fontFamily: mono, width: 'min(560px, 86vw)' }}
+        >
+          <div style={{ fontSize: 12, letterSpacing: '0.4em', color: '#c9d6e2', textAlign: 'center' }}>LEAVE A CONSTELLATION IN THE SKY</div>
+          <input
+            ref={this.sigInputRef}
+            className="sig-input"
+            maxLength={100}
+            placeholder="describe anything"
+            aria-label="Describe your constellation"
+            onKeyDown={this.onSignatureKey}
+          />
+          <div style={{ fontSize: 11, letterSpacing: '0.1em', color: 'rgba(201,214,226,0.4)' }}>press enter · it stays here for everyone after you</div>
+        </div>
 
         <div style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
           <span ref={this.spdRef}>SPD 00 KM/H</span>
