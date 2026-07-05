@@ -1,6 +1,17 @@
 import { Component, createRef } from 'react';
+import { drawConstellation } from './constellation/draw.js';
+import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
 
 const mono = 'ui-monospace, monospace';
+
+// night-sky star chart: panel per project figure (unit-of-viewport rects)
+// + formation window in _skyGrow space (staggered, career order)
+const SKY_FIGURES = [
+  { panel: { x: 0.07, y: 0.10, w: 0.17, h: 0.30 }, win: [0.00, 0.38] }, // tdk
+  { panel: { x: 0.64, y: 0.08, w: 0.16, h: 0.27 }, win: [0.18, 0.56] }, // ovis
+  { panel: { x: 0.34, y: 0.26, w: 0.20, h: 0.26 }, win: [0.38, 0.76] }, // llm research
+  { panel: { x: 0.76, y: 0.44, w: 0.15, h: 0.26 }, win: [0.58, 0.96] }, // dropin
+];
 const HEADLINE_SIZE = 'clamp(40px, 6vw, 88px)';
 
 // ---- Ovis "Patient Constellation" motif (02 / It rises ahead) ----
@@ -386,7 +397,8 @@ class SlopeBackground extends Component {
     // TDK: an ordered lineage tree (dark-on-snow, right of "The approach")
     this.graphA = this.buildGraph({ seed: 92017, G: 6, counts: [1, 4, 6, 5, 3, 2], extra: 0, jitter: 0, nyJitter: 0 });
     // Sky constellation: wider, more nodes, irregular formation + cross-links (light-on-sky, airborne)
-    this.graphSky = this.buildGraph({ seed: 40213, G: 5, counts: [2, 6, 8, 7, 5], extra: 16, jitter: 0.34, nyJitter: 0.07 });
+    // (former procedural graphSky removed — the night sky now charts the four
+    // project constellations from src/constellation/projects.js)
     // Ovis patient-constellation engine (check-in conversations -> classifications)
     this.ovisEng = { elapsed: 0, convo: null, readings: [], next: 1.6, ix: 0 };
     this.lipEl = document.querySelector('[data-screen-label="The lip"]');
@@ -832,9 +844,24 @@ class SlopeBackground extends Component {
       }
     }
 
-    // Sky constellation — light-on-sky, wide, airborne (grow/vis set in loop)
-    if (this.graphSky && this._skyVis > 0.002) {
-      this.renderGraph(this.graphSky, { grow: this._skyGrow, vis: this._skyVis, t, dark: false, panel: { x0: W * 0.08, x1: W * 0.92, y0: H * 0.12, y1: H * 0.78 } });
+    // Night-sky star chart — the four project constellations form in career
+    // order across the airborne dwell, drawn through the shared visitor-
+    // constellation renderer (same grammar the signature beat uses)
+    if (this._skyVis > 0.002) {
+      const sec = t * 0.001;
+      const smoothW = (a, b, v) => {
+        const x = Math.min(1, Math.max(0, (v - a) / (b - a)));
+        return x * x * (3 - 2 * x);
+      };
+      for (let i = 0; i < PROJECT_CONSTELLATIONS.length; i++) {
+        const fig = PROJECT_CONSTELLATIONS[i];
+        const { panel, win } = SKY_FIGURES[i];
+        const grow = smoothW(win[0], win[1], this._skyGrow);
+        if (grow <= 0.002) continue;
+        drawConstellation(gctx, fig.stars, fig.edges, {
+          x0: W * panel.x, y0: H * panel.y, w: W * panel.w, h: H * panel.h,
+        }, { t: sec, grow, alpha: this._skyVis, label: fig.name });
+      }
     }
   }
 
