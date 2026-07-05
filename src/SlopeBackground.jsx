@@ -716,12 +716,14 @@ class SlopeBackground extends Component {
     }
 
     // ---- SIGNATURE FORM (rides the night factor; DOM overlay, not canvas) ----
+    // _sigVis also dims the project star chart: the invite moment gets a clean sky
+    this._sigVis = smooth(0.45, 0.8, night);
     if (this.sigRef.current) {
-      const sa = smooth(0.45, 0.8, night);
+      const sa = this._sigVis;
       const sig = this.sigRef.current;
       sig.style.opacity = sa.toFixed(3);
       sig.style.pointerEvents = sa > 0.5 ? 'auto' : 'none';
-      sig.style.transform = `translate(-50%, ${((1 - sa) * 26).toFixed(1)}px)`;
+      sig.style.transform = `translate(-50%, calc(-50% + ${((1 - sa) * 26).toFixed(1)}px))`;
       if (sa < 0.5 && this.sigInputRef.current === document.activeElement) {
         this.sigInputRef.current.blur();
       }
@@ -897,7 +899,7 @@ class SlopeBackground extends Component {
         if (grow <= 0.002) continue;
         drawConstellation(gctx, fig.stars, fig.edges, {
           x0: W * panel.x, y0: H * panel.y, w: W * panel.w, h: H * panel.h,
-        }, { t: sec, grow, alpha: this._skyVis, label: fig.name });
+        }, { t: sec, grow, alpha: this._skyVis * (1 - (this._sigVis || 0)), label: fig.name });
       }
     }
   }
@@ -1822,7 +1824,7 @@ class SlopeBackground extends Component {
         {/* signature form — opacity/pointer-events driven per-frame by the night factor */}
         <div
           ref={this.sigRef}
-          style={{ position: 'fixed', left: '50%', top: '62%', transform: 'translate(-50%, 26px)', zIndex: 2, opacity: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, fontFamily: mono, width: 'min(560px, 86vw)' }}
+          style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, calc(-50% + 26px))', zIndex: 2, opacity: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, fontFamily: mono, width: 'min(560px, 86vw)' }}
         >
           <div style={{ fontSize: 12, letterSpacing: '0.4em', color: '#c9d6e2', textAlign: 'center' }}>LEAVE A CONSTELLATION IN THE SKY</div>
           <input

@@ -1,6 +1,6 @@
 # Site ending: leave a constellation in the night sky
 
-**Status:** idea, parked (2026-07-04). Replaces the earlier minigame idea for the site's final beat.
+**Status:** active development (as of 2026-07-05). Replaces the earlier minigame idea for the site's final beat.
 
 ## Concept
 
