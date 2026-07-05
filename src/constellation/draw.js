@@ -26,6 +26,7 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     grow = 1,
     newestId = null,
     label = null,
+    labelAlpha = 0.75,
     palette = SKY_PALETTE,
   } = opts;
   if (alpha <= 0.002 || !stars.length) return;
@@ -83,7 +84,7 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
 
   // label — small monospace caps beneath the figure's lowest star
   if (label && grow > 0.85) {
-    const la = alpha * smooth(0.85, 1, grow) * 0.75;
+    const la = alpha * smooth(0.85, 1, grow) * labelAlpha;
     let lowX = panel.x0 + panel.w / 2;
     let lowY = panel.y0;
     for (const s of stars) {

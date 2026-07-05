@@ -97,5 +97,13 @@ const DROPIN = {
   ],
 };
 
-// order = formation order across the airborne scroll (career order)
+// order = formation order across the airborne scroll (career order).
+// place = persistent sky-space position (top-left + scale in sky units,
+// see sky.js) — the projects are seeds in the same shared-sky system
+// visitor constellations use, just hand-placed instead of grid-assigned.
+TDK.place = { x: 0.07, y: 0.05, scale: 0.13 };
+OVIS.place = { x: 0.79, y: 0.06, scale: 0.125 };
+LLM.place = { x: 0.42, y: 0.02, scale: 0.14 };
+DROPIN.place = { x: 0.84, y: 0.44, scale: 0.11 };
+
 export const PROJECT_CONSTELLATIONS = [TDK, OVIS, LLM, DROPIN];

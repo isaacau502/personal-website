@@ -1,13 +1,14 @@
 import { Component, createRef } from 'react';
 import { drawConstellation } from './constellation/draw.js';
 import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
+import { placeInSky, skyToScreen, skyPanel, partingOffset } from './constellation/sky.js';
 
 const mono = 'ui-monospace, monospace';
 
 // night-sky star chart: formation window per figure in _skyGrow space
-// (staggered, career order). Panels are computed per-frame by
-// layoutSkyPanels() so every viewport keeps the figures clear of the
-// centered invite form — fixed percentages broke on wide/short windows.
+// (staggered, career order — matches PROJECT_CONSTELLATIONS). Placement is
+// sky-space ({x,y,scale} on each record, mapped per-frame by skyToScreen);
+// during the invite the sky PARTS around the form via partingOffset.
 const SKY_WINDOWS = [
   [0.00, 0.38], // tdk
   [0.18, 0.56], // ovis
@@ -15,30 +16,17 @@ const SKY_WINDOWS = [
   [0.58, 0.96], // dropin
 ];
 
-// The invite form is a fixed ~260px-tall band centered at 50% — figures live
-// in the bands above/below it, sized to fit, aspect clamped so they never
-// stretch on wide viewports. Order matches PROJECT_CONSTELLATIONS.
-function layoutSkyPanels(W, H) {
-  const navPad = Math.max(H * 0.06, 48);
-  const labelPad = 34;                      // room for the caps label under a figure
-  const formTop = H * 0.5 - 130;
-  const formBottom = H * 0.5 + 130;
-  const upperH = Math.max(110, formTop - navPad - labelPad);
-  const ph = Math.min(H * 0.32, upperH * 0.88);
-  const slack = upperH - ph; // vertical stagger room — breaks the row-of-three
-  const lowerTop = formBottom + 16;
-  const lowerH = Math.max(90, H * 0.93 - lowerTop - labelPad);
-  const ph2 = Math.min(H * 0.28, lowerH, ph);
-  const pw = (f, h) => Math.min(W * f, h * 1.25);
-  const cx = (c, w) => W * c - w / 2;
-  const wTdk = pw(0.16, ph), wOvis = pw(0.16, ph), wLlm = pw(0.18, ph), wDrop = pw(0.12, ph2);
-  return [
-    { x0: cx(0.14, wTdk), y0: navPad + slack * 0.3, w: wTdk, h: ph },            // tdk upper-left, mid-height
-    { x0: cx(0.83, wOvis), y0: navPad + slack * 0.85, w: wOvis, h: ph },         // ovis upper-right, lower
-    { x0: cx(0.485, wLlm), y0: navPad, w: wLlm, h: ph },                         // llm upper-center, highest
-    { x0: cx(0.86, wDrop), y0: lowerTop + (lowerH - ph2) / 2, w: wDrop, h: ph2 }, // dropin lower-right
-  ];
-}
+// mock visitor constellations for layout proofing: ?skyfill=N reuses the
+// project geometries under visitor-ish names, placed by the same occupancy
+// grid the Worker will use. Dev/QA-only; the real shared sky replaces this.
+const SKYFILL_NAMES = [
+  'good dog', 'sailboat', 'a bear making eggs', 'paper plane', 'first coffee',
+  'orion but worse', 'my cat', 'home', 'the wave', 'night train',
+  'a very tall sandwich', 'lighthouse', 'two left skis', 'the eiffel tower',
+  'moose on skates', 'grandma’s soup', 'a bicycle uphill', 'the moon’s moon',
+  'lost mitten', 'powder day', 'campfire', 'a whale in a suit',
+  'sunday morning', 'the last lift', 'hot chocolate', 'après',
+];
 const HEADLINE_SIZE = 'clamp(40px, 6vw, 88px)';
 
 // ---- Ovis "Patient Constellation" motif (02 / It rises ahead) ----
@@ -363,6 +351,29 @@ class SlopeBackground extends Component {
     let seed = 1234;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     for (let i = 0; i < 600; i++) this.rand.push(rnd());
+
+    // ---- shared-sky model: projects are seeds; visitor records join later.
+    // ?skyfill=N adds mock visitors (dev/QA) through the same occupancy grid
+    // the Worker will use, so a filled sky is provable before the API exists.
+    this.skyRecords = PROJECT_CONSTELLATIONS.map((fig, i) => ({
+      fig, place: fig.place, win: SKY_WINDOWS[i], project: true,
+    }));
+    const fillN = Math.min(60, parseInt(new URLSearchParams(window.location.search).get('skyfill'), 10) || 0);
+    if (fillN > 0) {
+      const occupied = this.skyRecords.map((r) => r.place);
+      for (let i = 0; i < fillN; i++) {
+        const geom = PROJECT_CONSTELLATIONS[(i * 7 + 3) % PROJECT_CONSTELLATIONS.length];
+        const scale = 0.06 + rnd() * 0.018; // ≤0.078: one grid cell incl. label pad
+        const place = placeInSky(occupied, scale, rnd);
+        occupied.push(place);
+        const w0 = 0.10 + (i / Math.max(fillN, 1)) * 0.62;
+        this.skyRecords.push({
+          fig: { name: SKYFILL_NAMES[i % SKYFILL_NAMES.length], stars: geom.stars, edges: geom.edges },
+          place, win: [w0, w0 + 0.28], project: false,
+          depth: 0.55 + rnd() * 0.45, // brightness layer — gives the filled sky depth
+        });
+      }
+    }
     // sparks (rushing dashes on the snow)
     this.sparks = [];
     for (let i = 0; i < 150; i++) {
@@ -916,20 +927,36 @@ class SlopeBackground extends Component {
     // Night-sky star chart — the four project constellations form in career
     // order across the airborne dwell, drawn through the shared visitor-
     // constellation renderer (same grammar the signature beat uses)
-    if (this._skyVis > 0.002) {
+    if (this._skyVis > 0.002 && this.skyRecords) {
       const sec = t * 0.001;
       const smoothW = (a, b, v) => {
         const x = Math.min(1, Math.max(0, (v - a) / (b - a)));
         return x * x * (3 - 2 * x);
       };
-      const panels = layoutSkyPanels(W, H);
-      for (let i = 0; i < PROJECT_CONSTELLATIONS.length; i++) {
-        const fig = PROJECT_CONSTELLATIONS[i];
-        const win = SKY_WINDOWS[i];
-        const grow = smoothW(win[0], win[1], this._skyGrow);
+      const m = skyToScreen(W, H);
+      const sig = this._sigVis || 0;
+      // the invite's reserved zone (screen space) — the sky parts around it
+      const formRect = { x0: W / 2 - 330, x1: W / 2 + 330, y0: H / 2 - 150, y1: H / 2 + 150 };
+      for (const rec of this.skyRecords) {
+        const grow = smoothW(rec.win[0], rec.win[1], this._skyGrow);
         if (grow <= 0.002) continue;
-        drawConstellation(gctx, fig.stars, fig.edges, panels[i],
-          { t: sec, grow, alpha: this._skyVis * (1 - 0.5 * (this._sigVis || 0)), label: fig.name });
+        const panel = skyPanel(rec.place, m);
+        const off = partingOffset(panel, formRect, sig);
+        const shifted = { x0: panel.x0 + off.dx, y0: panel.y0 + off.dy, w: panel.w, h: panel.h };
+        // figures still overlapping the zone after parting dim locally;
+        // the rest of the sky keeps (nearly) full brightness
+        const still = sig > 0.01 &&
+          shifted.x0 < formRect.x1 && shifted.x0 + shifted.w > formRect.x0 &&
+          shifted.y0 < formRect.y1 && shifted.y0 + shifted.h > formRect.y0;
+        const alpha = this._skyVis * (rec.depth ?? 1) * (1 - (still ? 0.55 : 0.12) * sig);
+        // label only when the caps text fits its figure's footprint —
+        // long names on small figures spill into neighbors and read as mess
+        const labelFits = shifted.w > 64 && rec.fig.name.length * 7.4 < shifted.w * 1.3;
+        drawConstellation(gctx, rec.fig.stars, rec.fig.edges, shifted, {
+          t: sec, grow, alpha,
+          label: labelFits ? rec.fig.name : null,
+          labelAlpha: rec.project ? 0.75 : 0.5,
+        });
       }
     }
   }
