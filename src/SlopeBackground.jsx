@@ -764,8 +764,9 @@ class SlopeBackground extends Component {
     // then the invite fades in while the chart dims to ~38% — never to zero.
     this._sigVis = smooth(0.66, 0.76, this.sm.air) * (1 - smooth(0.80, 0.92, this.sm.air + preLand));
     if (this.sigRef.current) {
-      // while a constellation is forming, the form steps back (dim, inert)
-      const sa = this._sigVis * (this._signing ? 0.3 : 1);
+      // while a constellation is forming, the form steps back (dim, inert),
+      // fading on the same smooth curve the sky's clearing uses
+      const sa = this._sigVis * (1 - 0.94 * (this._formExpand || 0));
       const sig = this.sigRef.current;
       sig.style.opacity = sa.toFixed(3);
       sig.style.pointerEvents = sa > 0.5 ? 'auto' : 'none';
@@ -864,7 +865,6 @@ class SlopeBackground extends Component {
     this._signing = {
       fig: { name: value, stars, edges: geom.edges },
       place: placeInSky(occupied, scale, r),
-      newestId: stars[stars.length - 1].id,
       born: null,
     };
   };
@@ -966,8 +966,29 @@ class SlopeBackground extends Component {
       };
       const m = skyToScreen(W, H);
       const sig = this._sigVis || 0;
-      // the invite's reserved zone (screen space) — the sky parts around it
-      const formRect = { x0: W / 2 - 330, x1: W / 2 + 330, y0: H / 2 - 150, y1: H / 2 + 150 };
+      // Signature phases, computed up front: the clearing EXPANDS smoothly
+      // with the forming and CONTRACTS as the drift completes, so neither
+      // the neighbors nor the joining figure ever jump (the join frame has
+      // formExpand === 0 → same offset basis as a settled record).
+      let sgnGrow = 0, sgnDrift = 0, formExpand = 0;
+      if (this._signing) {
+        const sgn = this._signing;
+        if (sgn.born === null) sgn.born = t;
+        const age = (t - sgn.born) / 1000;
+        sgnGrow = smoothW(0.1, 3.2, age);
+        sgnDrift = smoothW(4.2, 6.4, age);
+        formExpand = smoothW(0, 1.1, age) * (1 - sgnDrift);
+      }
+      this._formExpand = formExpand;
+      // the invite's reserved zone (screen space) — the sky parts around it;
+      // while a signature forms it grows to hold the center-stage figure
+      const cs = Math.max(m.s * 0.16, Math.min(W, H) * 0.52); // center-stage size — the reveal owns the sky
+      const hx = 330 + (Math.max(330, cs * 0.7) - 330) * formExpand;
+      const formRect = {
+        x0: W / 2 - hx, x1: W / 2 + hx,
+        y0: H / 2 - 150 - (cs - 20) * formExpand,
+        y1: H / 2 + 150,
+      };
       // two passes: compute parted panels, cap pairwise overlap, then draw
       const visible = [];
       for (const rec of this.skyRecords) {
@@ -1002,16 +1023,13 @@ class SlopeBackground extends Component {
       // its panel, so joining skyRecords at the end is seamless.
       if (this._signing) {
         const sgn = this._signing;
-        if (sgn.born === null) sgn.born = t;
-        const age = (t - sgn.born) / 1000;
-        const grow = smoothW(0.1, 3.2, age);
-        const drift = smoothW(4.2, 6.4, age);
+        const grow = sgnGrow;
+        const drift = sgnDrift;
         const target = skyPanel(sgn.place, m);
         const tOff = partingOffset(target, formRect, sig);
         const tx = target.x0 + tOff.dx, ty = target.y0 + tOff.dy;
-        const cs = Math.max(target.w * 1.6, Math.min(W, H) * 0.24);
         const cx0 = W / 2 - cs / 2;
-        const cy0 = H / 2 - 140 - cs; // bottom of the figure sits above the invite label
+        const cy0 = Math.max(H * 0.05, H / 2 - 140 - cs); // above the invite, clamped on-screen
         const panel = {
           x0: cx0 + (tx - cx0) * drift,
           y0: cy0 + (ty - cy0) * drift,
@@ -1020,13 +1038,12 @@ class SlopeBackground extends Component {
         };
         drawConstellation(gctx, sgn.fig.stars, sgn.fig.edges, panel, {
           t: sec, grow, alpha: this._skyVis,
-          newestId: sgn.newestId,
           label: sgn.fig.name, labelAlpha: 0.7,
         });
         if (drift >= 1) {
           this.skyRecords.push({
             fig: sgn.fig, place: sgn.place, win: [0, 0.001],
-            project: false, depth: 0.95, newestId: sgn.newestId,
+            project: false, depth: 0.95,
           });
           this._signing = null;
           if (this.sigInputRef.current) this.sigInputRef.current.value = '';
