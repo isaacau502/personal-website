@@ -11,6 +11,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "@resvg/resvg-wasm": "^2.6.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

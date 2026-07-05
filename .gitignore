@@ -25,3 +25,6 @@ dist-ssr
 .gstack/
 contact-preview/
 coverage/
+.dev.vars
+.env
+.wrangler/

@@ -8,7 +8,7 @@
 //
 // Every rejection returns { ok:false, error, detail } — explicit codes, no throws.
 
-export const MIN_STARS = 8;
+export const MIN_STARS = 2; // just enough for one line — only the MAXIMUM is a real constraint
 export const MAX_STARS = 14;
 export const MAX_NAME_LEN = 80;
 export const MAX_DESCRIPTION_LEN = 100;
@@ -96,25 +96,42 @@ export function validateConstellation(input) {
   }
   if (edges.length === 0) return fail('no-edges');
 
-  // connectivity: every star reachable from star 0 (a constellation is one figure)
-  const adj = merged.map(() => []);
-  for (const [a, b] of edges) {
-    adj[a].push(b);
-    adj[b].push(a);
-  }
-  const visited = new Set([0]);
-  const queue = [0];
-  while (queue.length) {
-    const n = queue.pop();
-    for (const m of adj[n]) {
-      if (!visited.has(m)) {
-        visited.add(m);
-        queue.push(m);
+  // connectivity: a constellation is one figure. Models occasionally leave a
+  // star floating (steam above a mug, a frisbee mid-air) — REPAIR by bridging
+  // each stray component to its nearest main-component star instead of
+  // rejecting: one extra hairline beats a failed generation.
+  const reach = (starts) => {
+    const seen = new Set(starts);
+    const queue = [...starts];
+    while (queue.length) {
+      const n = queue.pop();
+      for (const [a, b] of edges) {
+        const m = a === n ? b : b === n ? a : null;
+        if (m !== null && !seen.has(m)) {
+          seen.add(m);
+          queue.push(m);
+        }
       }
     }
+    return seen;
+  };
+  let component = reach([0]);
+  let guard = merged.length;
+  while (component.size !== merged.length && guard-- > 0) {
+    let best = null;
+    for (let i = 0; i < merged.length; i++) {
+      if (component.has(i)) continue;
+      for (const j of component) {
+        const d = Math.hypot(merged[i].x - merged[j].x, merged[i].y - merged[j].y);
+        if (!best || d < best.d) best = { d, from: j, to: i };
+      }
+    }
+    if (!best) break;
+    edges.push([best.from, best.to]);
+    component = reach([0]);
   }
-  if (visited.size !== merged.length) {
-    return fail('not-connected', { reachable: visited.size, stars: merged.length });
+  if (component.size !== merged.length) {
+    return fail('not-connected', { reachable: component.size, stars: merged.length });
   }
 
   // stable per-star ids (record-local; the Worker prefixes the record id at write time)
