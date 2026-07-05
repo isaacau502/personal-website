@@ -84,6 +84,191 @@ const star4 = (ctx, x, y, r) => {
   ctx.closePath();
 };
 
+// ---- DropIn follow-view rider (04, left of copy) ----
+// a low-poly plexus rider — irregular wireframe tube mesh over a mocap skeleton,
+// baggy outerwear proportions — carves in from frame-left, straightens his line,
+// pops an ollie center-frame, lands, and arcs back out the left edge.
+// local rider frame: +z downhill (away from viewer), +x rider's right / toe edge, y up
+const DI_AIR0 = 0.43, DI_AIR1 = 0.62, DI_AIRMAX = 0.70;
+const DI_SPEED = 60, DI_SWEEP = 16.4, DI_CARVE = 1.15, DI_RUN_S = 8;
+const DI_DELAY = 0.20; // copy gets this fraction of the dwell to itself before the rider starts forming
+const DI_CROUCH = [[0, .30], [.33, .30], [.415, .72], [.45, .08], [.50, .55], [.57, .50], [.62, .78], [.71, .34], [1, .30]];
+const DI_PITCH = [[0, 0], [.40, 0], [.435, .55], [.49, .12], [.58, .06], [.615, -.10], [.66, 0], [1, 0]];
+const DI_ARMS = [[0, .15], [.35, .28], [.43, .5], [.48, .85], [.57, .85], [.64, .4], [.74, .15], [1, .15]];
+const diLp = (a, b, s) => a + (b - a) * s;
+const diL3 = (a, b, s) => [diLp(a[0], b[0], s), diLp(a[1], b[1], s), diLp(a[2], b[2], s)];
+const diAdd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const diSub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const diMul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+const diCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const diDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const diNorm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const diHash = (i) => Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+const diKeys = (ks, u) => {
+  let i = 0;
+  while (i < ks.length - 2 && u > ks[i + 1][0]) i++;
+  const [ua, va] = ks[i], [ub, vb] = ks[i + 1];
+  return diLp(va, vb, smooth(0, 1, (u - ua) / Math.max(1e-6, ub - ua)));
+};
+const diRotY = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c + p[2] * s, p[1], -p[0] * s + p[2] * c]; };
+const diRotZ = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; };
+const diWigRaw = (x) => DI_CARVE * Math.sin(3 * Math.PI * x + 0.3);
+// ease into a straight line before the pop (hold the offset — no snap-back),
+// keep it through the trick, pick the carve back up after landing
+function diWiggle(u) {
+  const settle = smooth(0.32, 0.42, u);
+  const release = smooth(DI_AIR1 + 0.04, DI_AIR1 + 0.18, u);
+  return diLp(diLp(diWigRaw(u), diWigRaw(0.42), settle), diWigRaw(u), release);
+}
+// edge lean: carve component fades while the line is straight, arc lean stays
+function diLean(u) {
+  const settle = smooth(0.32, 0.42, u);
+  const release = smooth(DI_AIR1 + 0.04, DI_AIR1 + 0.18, u);
+  const factor = Math.max(1 - settle, release);
+  const grounded = 1 - smooth(DI_AIR0, DI_AIR0 + .03, u) + smooth(DI_AIR1 - .03, DI_AIR1, u);
+  return (-0.38 * (diWigRaw(u) / DI_CARVE) * factor + 0.14) * Math.max(0, Math.min(1, grounded));
+}
+// arc: in from frame-left, center at the trick, then forward-and-out —
+// drifting left while pulling away downhill (diRiderZ) so he exits into the distance
+const diBaseX = (u) => -DI_SWEEP / 2 + 4 * (DI_SWEEP / 2 + 1.2) * u * (1 - u);
+const diRiderX = (u) => diBaseX(u) + diWiggle(u);
+const diRiderZ = (u) => 20 * Math.pow(smooth(0.62, 1.0, u), 1.5);
+function diAir(u) {
+  const p = (u - DI_AIR0) / (DI_AIR1 - DI_AIR0);
+  return (p > 0 && p < 1) ? DI_AIRMAX * 4 * p * (1 - p) : 0;
+}
+
+function diBuildRider(u) {
+  const c = diKeys(DI_CROUCH, u);
+  const arms = diKeys(DI_ARMS, u);
+  const pitch = diKeys(DI_PITCH, u);
+
+  const tail = [0, 0.045, -0.92];
+  const pv = (p) => { // pitch about the tail (x-axis) so the pop lifts the nose
+    const q = diSub(p, tail);
+    return diAdd(tail, [q[0], q[1] * Math.cos(pitch) + q[2] * Math.sin(pitch), q[2] * Math.cos(pitch) - q[1] * Math.sin(pitch)]);
+  };
+
+  const verts = [], edges = [];
+  function tube(a, b, radii, K) {
+    const d = diNorm(diSub(b, a));
+    const ref = Math.abs(d[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const e1 = diNorm(diCross(d, ref)), e2 = diCross(d, e1);
+    const S = radii.length, base = verts.length;
+    for (let s = 0; s < S; s++) {
+      for (let k = 0; k < K; k++) {
+        const vi = verts.length;
+        // jittered station / radius / angle — irregular plexus, not a lathe
+        const tj = s / (S - 1) + (diHash(vi * 3 + 7) - 0.5) * 0.14 * (s > 0 && s < S - 1 ? 1 : 0.35);
+        const ce = diL3(a, b, Math.max(0, Math.min(1, tj)));
+        const rr = radii[s] * (0.82 + 0.36 * diHash(vi * 5 + 1));
+        const th = (k + 0.5 * (s % 2)) / K * 2 * Math.PI + (diHash(vi * 7 + 3) - 0.5) * 0.7;
+        verts.push(diAdd(ce, diAdd(diMul(e1, Math.cos(th) * rr), diMul(e2, Math.sin(th) * rr))));
+      }
+    }
+    let ec = base * 7;
+    for (let s = 0; s < S; s++) for (let k = 0; k < K; k++) {
+      const i0 = base + s * K + k, i1 = base + s * K + (k + 1) % K;
+      if (diHash(++ec) > 0.10) edges.push([i0, i1]);
+      if (s < S - 1) {
+        if (diHash(++ec) > 0.10) edges.push([i0, i0 + K]);
+        if (diHash(++ec) > 0.20) edges.push([i0, base + (s + 1) * K + (k + 1) % K]);
+      }
+    }
+  }
+
+  // board: triangulated deck grid with kicked tips (manufactured — stays regular)
+  const bbase = verts.length;
+  const secs = [[0.84, 0.135], [0.52, 0.165], [0.17, 0.175], [-0.17, 0.175], [-0.52, 0.165], [-0.76, 0.135]];
+  const deckY = (z) => 0.045 + 0.045 * Math.pow(Math.max(0, Math.abs(z) - 0.60) / 0.34, 2);
+  verts.push(pv([0, deckY(1.0), 1.0]));
+  for (const [z, w] of secs) for (const x of [-w, 0, w]) verts.push(pv([x, deckY(z), z]));
+  verts.push(pv([0, deckY(-0.94), -0.94]));
+  const nS = secs.length, noseI = bbase, tailI = bbase + 1 + nS * 3;
+  const si = (s, col) => bbase + 1 + s * 3 + col;
+  for (let col = 0; col < 3; col++) { edges.push([noseI, si(0, col)]); edges.push([tailI, si(nS - 1, col)]); }
+  for (let s = 0; s < nS; s++) {
+    edges.push([si(s, 0), si(s, 1)], [si(s, 1), si(s, 2)]);
+    if (s < nS - 1) {
+      for (let col = 0; col < 3; col++) edges.push([si(s, col), si(s + 1, col)]);
+      edges.push([si(s, s % 2 ? 0 : 1), si(s + 1, s % 2 ? 1 : 0)]);
+      edges.push([si(s, s % 2 ? 1 : 2), si(s + 1, s % 2 ? 2 : 1)]);
+    }
+  }
+
+  // skeleton (baggy outerwear hangs off these)
+  const ankleF = pv([0, 0.15, 0.30]);
+  const ankleB = pv([0, 0.15, -0.30]);
+  const pelvis = [0.02, 1.00 - c * 0.34, -0.02];
+  const chest = diAdd(pelvis, [0.03, 0.40 - c * 0.08, 0.07]);
+  const shF = diAdd(chest, [-0.16, 0.04, 0.20]);
+  const shB = diAdd(chest, [0.16, 0.04, -0.20]);
+  const neckB = diAdd(chest, [0, 0.08, 0.02]);
+  const headT = diAdd(neckB, [0.02, 0.24, 0.07]);
+  const hipF = diAdd(pelvis, [-0.06, 0, 0.15]);
+  const hipB = diAdd(pelvis, [0.06, 0, -0.15]);
+  const elF = diL3(diAdd(shF, [-0.06, -0.26, 0.12]), diAdd(shF, [-0.20, 0.03, 0.26]), arms);
+  const haF = diL3(diAdd(elF, [0.00, -0.26, 0.14]), diAdd(elF, [-0.20, 0.02, 0.30]), arms);
+  const elB = diL3(diAdd(shB, [0.07, -0.26, -0.10]), diAdd(shB, [0.22, 0.04, -0.24]), arms);
+  const haB = diL3(diAdd(elB, [0.06, -0.24, -0.12]), diAdd(elB, [0.22, 0.02, -0.28]), arms);
+  const bendDir = diNorm([0.18, 0, 0.12]);
+  const bend = 0.10 + c * 0.24;
+  const knee = (hip, ank) => diAdd(diMul(diAdd(hip, ank), 0.5), diMul(bendDir, bend));
+  const knF = knee(hipF, ankleF), knB = knee(hipB, ankleB);
+
+  // clothing tubes: baggy jacket, round hood, sleeves, mittens, pants, boots
+  tube(diAdd(pelvis, [0, -0.20, 0]), chest, [0.225, 0.195, 0.235], 7);
+  tube(neckB, headT, [0.055, 0.115, 0.115, 0.055], 6); // near-spherical head
+  tube(shF, elF, [0.095, 0.082], 4); tube(elF, haF, [0.080, 0.088], 4);
+  tube(shB, elB, [0.095, 0.082], 4); tube(elB, haB, [0.080, 0.088], 4);
+  const mitt = (el, ha) => tube(ha, diAdd(ha, diMul(diNorm(diSub(ha, el)), 0.15)), [0.062, 0.032], 4);
+  mitt(elF, haF); mitt(elB, haB);
+  tube(hipF, knF, [0.125, 0.105], 5); tube(knF, ankleF, [0.10, 0.078], 5);
+  tube(hipB, knB, [0.125, 0.105], 5); tube(knB, ankleB, [0.10, 0.078], 5);
+  tube(pv([-0.11, 0.11, 0.27]), pv([0.23, 0.10, 0.35]), [0.058, 0.072, 0.048], 4); // boots, toes to toe edge
+  tube(pv([-0.11, 0.11, -0.33]), pv([0.23, 0.10, -0.25]), [0.058, 0.072, 0.048], 4);
+  const clav = verts.length;
+  verts.push(shF, chest, shB);
+  edges.push([clav, clav + 1], [clav + 1, clav + 2]);
+  // irregular cross-links between nearby body vertices (skip the board)
+  const bStart = tailI + 1;
+  for (let k = 0; k < 42; k++) {
+    const i = bStart + Math.floor(diHash(k * 13 + 2) * (verts.length - bStart));
+    const j = bStart + Math.floor(diHash(k * 29 + 5) * (verts.length - bStart));
+    if (i === j) continue;
+    const dd = diSub(verts[i], verts[j]);
+    if (Math.hypot(dd[0], dd[1], dd[2]) < 0.30) edges.push([i, j]);
+  }
+
+  return { verts, edges, sensors: [pelvis, ankleB, haF], boardEnd: tailI };
+}
+
+// world transform: edge lean roll → heading yaw along the arc → translate
+function diTransform(u) {
+  const roll = diLean(u);
+  const e = 1e-3;
+  const dzr = (diRiderZ(u + e) - diRiderZ(u - e)) / (2 * e);
+  const hYaw = Math.atan2((diRiderX(u + e) - diRiderX(u - e)) / (2 * e), DI_SPEED + dzr);
+  const air = diAir(u), x = diRiderX(u);
+  return (p) => diAdd(diRotY(diRotZ(p, roll), hYaw), [x, air, diRiderZ(u)]);
+}
+
+// fixed camera slightly left of viewport center (copy sits right); rider crosses the frame
+function diMakeCam(u, W, H) {
+  const pos = [0, 1.85, -5.7];
+  const tgt = [diRiderX(u) * 0.12, 0.85, 1.8];
+  const fwd = diNorm(diSub(tgt, pos));
+  const rgt = diNorm(diCross([0, 1, 0], fwd));
+  const up = diCross(fwd, rgt);
+  const f = H * 2.0, cx = W * 0.38, cy = H * 0.52;
+  return (p) => {
+    const q = diSub(p, pos);
+    const z = diDot(q, fwd);
+    if (z < 0.25) return null;
+    return [cx + f * diDot(q, rgt) / z, cy - f * diDot(q, up) / z, z];
+  };
+}
+
 class SlopeBackground extends Component {
   static defaultProps = {
     carve: 1,
@@ -206,6 +391,7 @@ class SlopeBackground extends Component {
     this.ovisEng = { elapsed: 0, convo: null, readings: [], next: 1.6, ix: 0 };
     this.lipEl = document.querySelector('[data-screen-label="The lip"]');
     this.llmEl = document.querySelector('[data-screen-label="LLM research"]');
+    this.dropEl = document.querySelector('[data-screen-label="DropIn"]');
     this.takeEl = document.querySelector('[data-screen-label="Takeoff"]');
     this.airEl = document.querySelector('[data-screen-label="Airborne"]');
     this.landEl = document.querySelector('[data-screen-label="The landing"]');
@@ -507,6 +693,8 @@ class SlopeBackground extends Component {
     this.drawOvis(t, dt);
     // LLM research: grounded repair constellation (right of the LLM copy)
     this.drawLLM(t);
+    // DropIn: low-poly plexus rider ollies through the frame (left of copy)
+    this.drawDropIn(t);
   };
 
   syncHeadlineWidth() {
@@ -533,6 +721,18 @@ class SlopeBackground extends Component {
     const r = el.getBoundingClientRect();
     const H = this.H || window.innerHeight;
     return Math.max(0, Math.min(1, (H * 0.5 - r.top) / Math.max(r.height, 1)));
+  }
+
+  // tall sticky sections: copy pins while scroll scrubs the animation.
+  // grow runs from half-entry to ~88% of the pinned phase; vis fades at both ends
+  scrubTall(el, frac = 0.88) {
+    if (!el) return { grow: 0, vis: 0 };
+    const H = this.H;
+    const r = el.getBoundingClientRect();
+    const grow = Math.max(0, Math.min(1, (H * 0.5 - r.top) / ((r.height - H * 0.5) * frac)));
+    const vis = Math.max(0, Math.min(1, (H - r.top) / (H * 0.45)))
+              * Math.max(0, Math.min(1, (r.top + r.height) / (H * 0.55)));
+    return { grow, vis };
   }
 
   buildGraph(cfg) {
@@ -596,10 +796,7 @@ class SlopeBackground extends Component {
 
     // TDK lineage tree — dark-on-snow, right of "The approach"
     if (this.approachEl && this.graphA) {
-      const r = this.approachEl.getBoundingClientRect();
-      const center = r.top + r.height / 2;
-      const grow = Math.max(0, Math.min(1, (H - center) / (H * 0.5)));
-      const vis = Math.max(0, Math.min(1, 1 - Math.abs(center - H * 0.5) / (H * 0.62)));
+      const { grow, vis } = this.scrubTall(this.approachEl);
       if (vis > 0.002 && grow > 0.002) {
         this.renderGraph(this.graphA, { grow, vis, t, dark: true, panel: { x0: W * 0.54, x1: W * 0.93, y0: H * 0.18, y1: H * 0.82 } });
       }
@@ -949,10 +1146,7 @@ class SlopeBackground extends Component {
     const gctx = this.gctx;
     if (!gctx || !this.llmEl) return;
     const W = this.W, H = this.H;
-    const r = this.llmEl.getBoundingClientRect();
-    const center = r.top + r.height / 2;
-    const grow = Math.max(0, Math.min(1, (H - center) / (H * 0.55)));
-    const vis = Math.max(0, Math.min(1, 1 - Math.abs(center - H * 0.5) / (H * 0.62)));
+    const { grow, vis } = this.scrubTall(this.llmEl);
     if (vis <= 0.002 || grow <= 0.002) return;
     const A = vis;
 
@@ -1110,6 +1304,138 @@ class SlopeBackground extends Component {
     }
   }
 
+  drawDropIn(t) {
+    const gctx = this.gctx;
+    if (!gctx || !this.dropEl) return;
+    const W = this.W, H = this.H;
+    const { grow, vis } = this.scrubTall(this.dropEl);
+    if (vis <= 0.002 || grow <= 0.002) return;
+    const A = vis;
+    const u = smooth(DI_DELAY, 1, grow); // text reads alone for the first stretch, then the rider forms
+    const proj = diMakeCam(u, W, H);
+    const dist = DI_SPEED * u;
+
+    // ground flecks flowing past (the viewer is riding too)
+    for (let k = 0; k < 70; k++) {
+      const gx2 = (diHash(k * 11 + 5) - 0.5) * 26;
+      const z0 = diHash(k * 17 + 3) * 46;
+      const rz = ((z0 - dist) % 46 + 46) % 46 - 4;
+      const s = proj([gx2, 0, rz]);
+      if (!s) continue;
+      const a = 0.26 * Math.max(0, 1 - s[2] / 30) * A;
+      if (a <= 0.01) continue;
+      gctx.beginPath(); gctx.arc(s[0], s[1], Math.max(0.6, 2.2 - s[2] * 0.05), 0, 7);
+      gctx.fillStyle = `rgba(${OV_SLATE},${a.toFixed(3)})`; gctx.fill();
+    }
+
+    // board trail — two carve lines, gap while airborne
+    gctx.strokeStyle = `rgba(${OV_SLATE},${(0.32 * A).toFixed(3)})`;
+    gctx.lineWidth = 1.2;
+    for (const off of [-0.11, 0.11]) {
+      gctx.beginPath();
+      let pen = false;
+      for (let tp = Math.max(0, u - 0.30); tp <= u; tp += 0.0035) {
+        if (diAir(tp) > 0.02) { pen = false; continue; }
+        const s = proj([diRiderX(tp) + off, 0.015, diRiderZ(tp) - (dist - DI_SPEED * tp)]);
+        if (!s) { pen = false; continue; }
+        if (pen) gctx.lineTo(s[0], s[1]); else gctx.moveTo(s[0], s[1]);
+        pen = true;
+      }
+      gctx.stroke();
+    }
+
+    // rider mesh, forming while entering (stars settle into place)
+    const rig = diBuildRider(u);
+    const xf = diTransform(u);
+    const sp = rig.verts.map((p, i) => {
+      const s = proj(xf(p));
+      if (!s) return null;
+      const form = smooth(0.10 + (i % 40) * 0.0025, 0.16 + (i % 40) * 0.0025, u);
+      return [s[0] + (diHash(i) - 0.5) * 130 * (1 - form), s[1] + (diHash(i + 31) - 0.5) * 90 * (1 - form), s[2], form];
+    });
+
+    // depth fade: the rider dims and shrinks as he pulls away on exit
+    const bodyC = xf([0, 0.9, 0]);
+    const bodyS = proj(bodyC);
+    if (!bodyS) return;
+    const far = Math.max(0, Math.min(1, 1.5 - bodyS[2] / 16));
+    if (far <= 0.01) return;
+    const shrink = Math.min(1.2, 6.5 / bodyS[2]);
+
+    // plexus motes floating around the body
+    for (let k = 0; k < 14; k++) {
+      const mp = diAdd(bodyC, [(diHash(k * 7) - 0.5) * 2.6, (diHash(k * 13 + 2) - 0.3) * 2.0, (diHash(k * 3 + 8) - 0.5) * 2.2]);
+      const s = proj(mp);
+      if (!s) continue;
+      const a = 0.28 * (0.3 + 0.7 * diHash(k + 50)) * far * A;
+      gctx.beginPath(); gctx.arc(s[0], s[1], 1.2 + diHash(k + 21) * 1.2, 0, 7);
+      gctx.fillStyle = `rgba(${OV_SLATE},${a.toFixed(3)})`; gctx.fill();
+      if (k < 7) {
+        const vi = Math.floor(diHash(k * 9 + 4) * sp.length);
+        const v = sp[vi];
+        if (v && v[3] > 0.5) {
+          gctx.beginPath(); gctx.moveTo(s[0], s[1]); gctx.lineTo(v[0], v[1]);
+          gctx.strokeStyle = `rgba(${OV_SLATE},${(0.10 * A).toFixed(3)})`; gctx.lineWidth = 0.8; gctx.stroke();
+        }
+      }
+    }
+
+    // mesh edges with depth fog (dark-on-snow)
+    gctx.lineWidth = 0.9; gctx.lineCap = 'round';
+    for (const [a2, b2] of rig.edges) {
+      const P = sp[a2], Q = sp[b2];
+      if (!P || !Q) continue;
+      const fa = Math.min(P[3], Q[3]);
+      if (fa < 0.03) continue;
+      const board = a2 <= rig.boardEnd && b2 <= rig.boardEnd;
+      const fog = Math.max(0, Math.min(1, 1.5 - (P[2] + Q[2]) / 2 / 16));
+      gctx.strokeStyle = board
+        ? `rgba(${OV_INKB},${(0.55 * fa * fog * A).toFixed(3)})`
+        : `rgba(${OV_SLATE},${(0.42 * fa * fog * A).toFixed(3)})`;
+      gctx.beginPath(); gctx.moveTo(P[0], P[1]); gctx.lineTo(Q[0], Q[1]); gctx.stroke();
+    }
+
+    // mesh vertices (every other one) as glowing stars — TDK/Ovis-style halos
+    for (let i = 0; i < sp.length; i += 2) {
+      const v = sp[i];
+      if (!v || v[3] < 0.05) continue;
+      const tw = 0.85 + 0.15 * Math.sin(t * 2 + i * 1.7);
+      if (i % 4 === 0) { // halo on every 4th star only — keeps the glow airy
+        const gr = 10 * shrink;
+        const g = gctx.createRadialGradient(v[0], v[1], 0, v[0], v[1], gr);
+        g.addColorStop(0, `rgba(${OV_SLATE},${(0.20 * tw * v[3] * far * A).toFixed(3)})`);
+        g.addColorStop(1, `rgba(${OV_SLATE},0)`);
+        gctx.fillStyle = g;
+        gctx.beginPath(); gctx.arc(v[0], v[1], gr, 0, 7); gctx.fill();
+      }
+      gctx.beginPath(); gctx.arc(v[0], v[1], 1.6 * shrink, 0, 7);
+      gctx.fillStyle = `rgba(${LG_INK},${(0.58 * tw * v[3] * far * A).toFixed(3)})`; gctx.fill();
+    }
+
+    // IMU sensor nodes — ink-blue, ringed, glowing
+    for (const jp of rig.sensors) {
+      const s = proj(xf(jp));
+      if (!s) continue;
+      const g = gctx.createRadialGradient(s[0], s[1], 0, s[0], s[1], 13 * shrink);
+      g.addColorStop(0, `rgba(${OV_INKB},${(0.30 * far * A).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${OV_INKB},0)`);
+      gctx.fillStyle = g; gctx.beginPath(); gctx.arc(s[0], s[1], 13 * shrink, 0, 7); gctx.fill();
+      gctx.beginPath(); gctx.arc(s[0], s[1], 3 * shrink, 0, 7); gctx.fillStyle = `rgba(${OV_INKB},${(0.95 * far * A).toFixed(3)})`; gctx.fill();
+      gctx.beginPath(); gctx.arc(s[0], s[1], 6.5 * shrink, 0, 7); gctx.strokeStyle = `rgba(${OV_INKB},${(0.5 * far * A).toFixed(3)})`; gctx.lineWidth = 1; gctx.stroke();
+    }
+
+    // HUD — live IMU readouts, above the run
+    const ha = smooth(0.08, 0.18, u);
+    if (ha > 0.01) {
+      gctx.font = `600 ${Math.max(12, W * 0.010)}px ui-monospace, Menlo, monospace`;
+      gctx.fillStyle = `rgba(${OV_INKB},${(0.9 * ha * A).toFixed(3)})`;
+      const edgeDeg = Math.round(Math.abs(diLean(u)) * 57.3);
+      const airS = (u > DI_AIR0 && u < DI_AIR1) ? ((u - DI_AIR0) * DI_RUN_S).toFixed(2)
+                 : (u >= DI_AIR1 ? ((DI_AIR1 - DI_AIR0) * DI_RUN_S).toFixed(2) : '0.00');
+      gctx.fillText(`IMU 100HZ · EDGE ${String(edgeDeg).padStart(2, ' ')}° · AIR ${airS}s`, W * 0.06, H * 0.14);
+    }
+  }
+
   drawGlyph(ctx, f, x, y, rad, p) {
     const rot = f.rot + f.rotV * p * 15;
     ctx.save();
@@ -1242,7 +1568,9 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          <section data-screen-label="The approach" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
+          {/* 220vh + sticky copy: the extra scroll scrubs the lineage-tree formation */}
+          <section id="work" data-screen-label="The approach" style={{ height: '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
             <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>01 / THE FITTEST MODEL WINS</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
@@ -1251,10 +1579,11 @@ class SlopeBackground extends Component {
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Each generation prunes the weak and recombines the strong.</p>
             </div>
+            </div>
           </section>
 
           {/* 220vh + sticky copy: the extra 120vh of scroll scrubs the Ovis constellation formation */}
-          <section data-screen-label="The lip" style={{ height: '220vh', position: 'relative' }}>
+          <section id="projects" data-screen-label="The lip" style={{ height: '220vh', position: 'relative' }}>
             <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
               <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'right', willChange: 'transform, opacity' }}>
                 <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>02 / CARE THAT CHECKS IN</div>
@@ -1271,7 +1600,9 @@ class SlopeBackground extends Component {
           {/* spacer — lets the Ovis constellation scroll off before LLM copy arrives */}
           <div style={{ height: '60vh' }} />
 
-          <section data-screen-label="LLM research" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
+          {/* 220vh + sticky copy: the extra scroll scrubs the grounded-repair sweep */}
+          <section data-screen-label="LLM research" style={{ height: '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
             <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>03 / POINT · CLICK · REPAIR</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
@@ -1280,9 +1611,12 @@ class SlopeBackground extends Component {
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</p>
             </div>
+            </div>
           </section>
 
-          <section data-screen-label="DropIn" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
+          {/* 260vh + sticky copy: the extra scroll scrubs the full ollie run */}
+          <section data-screen-label="DropIn" style={{ height: '260vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
             <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'right', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>04 / CAPTURE EVERYTHING</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
@@ -1290,6 +1624,7 @@ class SlopeBackground extends Component {
                 <span ref={this.dropSubRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Real-time mocap on consumer hardware&mdash;no $50k optical rigs, just an iPhone. A quaternion-based kinematic solver reconstructs rider kinematics from raw 100Hz IMU streams with sub-50ms latency, while a custom backpressure protocol sheds stale frames to keep every joint coherent. WebGL telemetry turns each run into actionable coaching.</p>
+            </div>
             </div>
           </section>
 
@@ -1311,6 +1646,7 @@ class SlopeBackground extends Component {
           <section data-screen-label="The landing" style={{ height: '190vh' }} />
 
           <section
+            id="contact"
             ref={this.landPageRef}
             data-screen-label="Landing page"
             style={{ minHeight: '100vh', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: '14vh 8vw', textAlign: 'center', position: 'relative' }}
@@ -1336,7 +1672,7 @@ class SlopeBackground extends Component {
               </div>
               <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
                 <a href="mailto:ayhisaac@gmail.com" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', background: '#17222f', color: '#ffffff', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>EMAIL</a>
-                <a href="#" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', border: '2px solid #17222f', color: '#17222f', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>RESUME ↓</a>
+                <a href="/resume.pdf" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', border: '2px solid #17222f', color: '#17222f', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>RESUME ↓</a>
               </div>
             </div>
             <div style={{ position: 'absolute', bottom: 22, display: 'flex', alignItems: 'center', gap: 10, fontFamily: mono, fontSize: 11, letterSpacing: '0.3em', color: '#8fa2b8' }}>
@@ -1347,6 +1683,35 @@ class SlopeBackground extends Component {
           </section>
 
         </div>
+
+        <style>{`
+          .nav-link { position: relative; }
+          .nav-link::after {
+            content: ''; position: absolute; left: 0; bottom: -4px; height: 1px; width: 0;
+            background: #28569e; transition: width 0.22s ease;
+          }
+          .nav-link:hover { color: #17222f; }
+          .nav-link:hover::after { width: 100%; }
+        `}</style>
+        <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', fontFamily: mono, fontSize: 12, letterSpacing: '0.18em' }}>
+          <span style={{ color: '#33455c' }}>IA</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4a5c72', textDecoration: 'none' }}>
+              <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block' }} />
+              WORK
+            </a>
+            <span style={{ width: 1, height: 12, background: '#28569e' }} />
+            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4a5c72', textDecoration: 'none' }}>
+              <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
+              PROJECTS
+            </a>
+            <span style={{ width: 1, height: 12, background: '#28569e' }} />
+            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4a5c72', textDecoration: 'none' }}>
+              <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
+              CONTACT
+            </a>
+          </div>
+        </nav>
 
         <div style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
           <span ref={this.spdRef}>SPD 00 KM/H</span>
