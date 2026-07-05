@@ -910,6 +910,18 @@ class SlopeBackground extends Component {
     this._pending = true;
     this.setSigStatus('charting the sky…');
     if (this.sigInputRef.current) this.sigInputRef.current.disabled = true;
+    // instant feedback: stars gather in the clearing right away — the LLM's
+    // figure will form FROM them (drawGraph morphs each to a star position)
+    const gh = [...value].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) >>> 0), 7) || 1;
+    let gs = gh;
+    const gr = () => { gs = (gs * 1664525 + 1013904223) >>> 0; return gs / 4294967296; };
+    this._gather = {
+      born: null, dyingAt: null, targets: null,
+      stars: Array.from({ length: 10 }, () => ({
+        x: 0.14 + gr() * 0.72, y: 0.12 + gr() * 0.62,
+        size: 0.55 + gr() * 0.6, w: 1.6 + gr() * 2.4, p: gr() * Math.PI * 2,
+      })),
+    };
     fetch('/api/sign', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -933,6 +945,7 @@ class SlopeBackground extends Component {
     this._pending = false;
     this.setSigStatus(msg);
     if (this.sigInputRef.current) this.sigInputRef.current.disabled = false;
+    if (this._gather) this._gather.dyingAt = performance.now();
   };
 
   beginForming = (record) => {
@@ -949,6 +962,23 @@ class SlopeBackground extends Component {
       place: placeInSky(occupied, scale, r),
       born: null,
     };
+    // hand each constellation star its nearest gather star to morph from
+    if (this._gather) {
+      const gs = this._gather.stars;
+      this._gather.targets = record.stars.map((st) => {
+        let best = 0, bd = 1e9;
+        for (let j = 0; j < gs.length; j++) {
+          const d = Math.hypot(gs[j].x - st.x, gs[j].y - st.y);
+          if (d < bd) { bd = d; best = j; }
+        }
+        gs[best].used = true;
+        return {
+          sx: gs[best].x, sy: gs[best].y, ssize: gs[best].size,
+          w: gs[best].w, p: gs[best].p,
+          tx: st.x, ty: st.y, tsize: st.size,
+        };
+      });
+    }
   };
 
   // zero-server fallback (design doc: degraded mode): hash-seeded variation
@@ -1077,6 +1107,15 @@ class SlopeBackground extends Component {
         sgnDrift = smoothW(4.2, 6.4, age);
         formExpand = smoothW(0, 1.1, age) * (1 - sgnDrift);
       }
+      // gather phase (LLM in flight): the clearing opens partway so the
+      // instant-feedback stars have room; hands off to the forming curve
+      // (max) with no contraction, and eases shut if the submission fails
+      if (this._gather) {
+        const g = this._gather;
+        const gAge = g.born === null ? 0 : (t - g.born) / 1000;
+        const dieK = g.dyingAt ? 1 - smoothW(0, 0.5, (t - g.dyingAt) / 1000) : 1;
+        formExpand = Math.max(formExpand, smoothW(0, 0.8, gAge) * 0.35 * dieK * (1 - sgnDrift));
+      }
       this._formExpand = formExpand;
       // the invite's reserved zone (screen space) — the sky parts around it;
       // while a signature forms it grows to hold the center-stage figure
@@ -1145,6 +1184,71 @@ class SlopeBackground extends Component {
           });
           this._signing = null;
           if (this.sigInputRef.current) this.sigInputRef.current.value = '';
+        }
+      }
+
+      // ---- GATHER STARS: instant feedback while the LLM works. On submit a
+      // handful of stars fade into the clearing and hover; when the figure
+      // arrives each glides to its assigned star position and crossfades out
+      // exactly as the real star's draw-on stagger reaches it, so the
+      // constellation appears to form FROM them. On failure they disperse.
+      if (this._gather) {
+        const g = this._gather;
+        if (g.born === null) g.born = t;
+        const gAge = (t - g.born) / 1000;
+        const cx0g = W / 2 - cs / 2;
+        const cy0g = Math.max(H * 0.05, H / 2 - 140 - cs);
+        const baseR = cs * 0.018;
+        const star = (ux, uy, size, a, w, p) => {
+          const x = cx0g + ux * cs, y = cy0g + uy * cs;
+          const tw = 1 + Math.sin(t * 0.0023 * w + p) * 0.16;
+          const rad = baseR * (0.5 + size * 0.75) * tw;
+          const glowR = rad * 4.8;
+          const gl = gctx.createRadialGradient(x, y, 0, x, y, glowR);
+          gl.addColorStop(0, `rgba(150,180,220,${(a * 0.25).toFixed(3)})`);
+          gl.addColorStop(0.32, `rgba(150,180,220,${(a * 0.11).toFixed(3)})`);
+          gl.addColorStop(1, 'rgba(150,180,220,0)');
+          gctx.fillStyle = gl;
+          gctx.beginPath(); gctx.arc(x, y, glowR, 0, 7); gctx.fill();
+          gctx.fillStyle = `rgba(206,222,244,${(a * (0.5 + 0.3 * size)).toFixed(3)})`;
+          gctx.beginPath(); gctx.arc(x, y, rad, 0, 7); gctx.fill();
+        };
+        const dieK = g.dyingAt ? 1 - smoothW(0, 0.5, (t - g.dyingAt) / 1000) : 1;
+        if (dieK <= 0.002 || sgnGrow >= 1) {
+          this._gather = null;
+        } else if (g.targets && this._signing) {
+          // morph: glide to star positions, crossfade with the draw-on stagger
+          const mv = smoothW(0, 0.9, (t - this._signing.born) / 1000);
+          const n = this._signing.fig.stars.length;
+          for (let k = 0; k < g.targets.length; k++) {
+            const tg = g.targets[k];
+            const cr = smoothW(k / (n + 1), k / (n + 1) + 0.18, sgnGrow);
+            const a = this._skyVis * 0.8 * (1 - cr);
+            if (a <= 0.002) continue;
+            star(
+              tg.sx + (tg.tx - tg.sx) * mv,
+              tg.sy + (tg.ty - tg.sy) * mv,
+              tg.ssize + (tg.tsize - tg.ssize) * mv,
+              a, tg.w, tg.p,
+            );
+          }
+          for (const gs of g.stars) {
+            if (gs.used) continue;
+            const a = this._skyVis * 0.5 * (1 - mv);
+            if (a > 0.002) star(gs.x, gs.y, gs.size, a, gs.w, gs.p);
+          }
+        } else {
+          // pending: fade in one by one, hover with a slow lissajous breath
+          for (let k = 0; k < g.stars.length; k++) {
+            const gs = g.stars[k];
+            const a = this._skyVis * 0.55 * smoothW(k * 0.07, k * 0.07 + 0.3, gAge) * dieK;
+            if (a <= 0.002) continue;
+            star(
+              gs.x + Math.sin(t * 0.00035 * gs.w + gs.p) * 0.012,
+              gs.y + Math.cos(t * 0.00028 * gs.w + gs.p * 1.7) * 0.01,
+              gs.size, a, gs.w, gs.p,
+            );
+          }
         }
       }
     }
@@ -1992,7 +2096,7 @@ class SlopeBackground extends Component {
             id="contact"
             ref={this.landPageRef}
             data-screen-label="Landing page"
-            style={{ minHeight: '100vh', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: '14vh 8vw', textAlign: 'center', position: 'relative' }}
+            style={{ boxSizing: 'border-box', minHeight: '100vh', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: '14vh 8vw', textAlign: 'center', position: 'relative' }}
           >
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>06 / THE LANDING — STOMPED</div>
