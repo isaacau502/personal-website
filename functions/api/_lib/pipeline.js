@@ -57,10 +57,12 @@ export function createSignPipeline(deps) {
     let raw;
     try {
       raw = await deps.generate(desc.value);
-    } catch {
+    } catch (err1) {
+      console.error('generate attempt 1 failed:', err1 && err1.message);
       try {
         raw = await deps.generate(desc.value);
-      } catch {
+      } catch (err2) {
+        console.error('generate attempt 2 failed:', err2 && err2.message, err2 && err2.stack);
         return { ok: false, status: 502, error: 'generation-failed' };
       }
     }
