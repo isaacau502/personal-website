@@ -16,52 +16,45 @@
 export const SKY_W = 1;
 export const SKY_H = 0.6;
 
-// Occupancy-grid placement — mirror of the Worker's write-time algorithm.
-// One FIXED grid for every record (a per-scale grid made placements collide:
-// two calls disagreed about where cells were). Odd columns drop half a cell
-// (checkerboard) so the filled sky scatters instead of reading as rows.
-// occupied: [{x, y, scale}], scale: figure size in sky units (≤ GRID_CELL),
+// Best-candidate (blue-noise) placement — mirror of the Worker's write-time
+// algorithm. Try K random spots, keep the one with the largest clearance
+// from every existing figure (clearance normalized by combined footprints,
+// labels included). Maximizing minimum distance IS even spreading; density
+// degrades smoothly instead of falling off a grid-capacity cliff.
+// occupied: [{x, y, scale}], scale: figure size in sky units,
 // rand: () => [0,1) (caller supplies determinism).
-export const GRID_CELL = 0.105;
 const LABEL_PAD = 0.024; // sky-units reserved under a figure for its caps label
+const CANDIDATES = 64;
 
 export function placeInSky(occupied, scale, rand) {
-  const cell = GRID_CELL;
-  const cols = Math.max(1, Math.floor(SKY_W / cell));
-  const rows = Math.max(1, Math.floor((SKY_H - cell * 0.5) / cell)); // half-cell kept for the stagger
-  const colPhase = (c) => (c % 2 === 1 ? cell * 0.5 : 0);
-  // a placement claims EVERY cell its footprint (figure + label) touches —
-  // hand-placed seeds larger than one cell must block their whole area
-  const taken = new Set();
-  for (const p of occupied) {
-    const c0 = Math.max(0, Math.floor(p.x / cell));
-    const c1 = Math.min(cols - 1, Math.floor((p.x + p.scale) / cell));
-    for (let c = c0; c <= c1; c++) {
-      const r0 = Math.max(0, Math.floor((p.y - colPhase(c)) / cell));
-      const r1 = Math.min(rows - 1, Math.floor((p.y + p.scale + LABEL_PAD - colPhase(c)) / cell));
-      for (let r = r0; r <= r1; r++) taken.add(`${c}:${r}`);
+  let best = null;
+  let bestScore = -Infinity;
+  for (let k = 0; k < CANDIDATES; k++) {
+    if (bestScore > 1.3) break; // comfortable clear air found — stop sampling
+    const x = rand() * (SKY_W - scale);
+    const y = rand() * (SKY_H - scale - LABEL_PAD);
+    let score = Infinity;
+    for (const p of occupied) {
+      const dx = (x + scale / 2) - (p.x + p.scale / 2);
+      const dy = (y + (scale + LABEL_PAD) / 2) - (p.y + (p.scale + LABEL_PAD) / 2);
+      // 1.0 ≈ footprints exactly touching; > 1 = clear air between them
+      const reach = ((scale + p.scale) / 2 + LABEL_PAD) * 1.05;
+      score = Math.min(score, Math.hypot(dx, dy) / reach);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = { x, y, scale };
     }
   }
-  const free = [];
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      if (!taken.has(`${c}:${r}`)) free.push([c, r]);
-    }
-  }
-  let c, r;
-  if (free.length) {
-    [c, r] = free[Math.floor(rand() * free.length)];
-  } else {
-    // crowded sky: allow adjacency, pick any cell (the sky may get dense)
-    c = Math.floor(rand() * cols);
-    r = Math.floor(rand() * rows);
-  }
-  // jitter bounded by the cell's spare room so neighbors can never touch
-  const spare = Math.max(0, cell - scale - LABEL_PAD);
-  const jitter = () => (rand() - 0.5) * spare;
-  const x = Math.max(0, Math.min(SKY_W - scale, c * cell + (cell - scale) / 2 + jitter()));
-  const y = Math.max(0, Math.min(SKY_H - scale, r * cell + colPhase(c) + (cell - scale - LABEL_PAD) / 2 + jitter()));
-  return { x, y, scale };
+  return best;
+}
+
+// Density-adaptive figure size: few constellations → big figures (the sky
+// belongs to them); a filling sky shrinks everyone smoothly. Area budget:
+// n footprints (figure + label) should cover ~55% of the sky.
+export function adaptiveScale(n) {
+  const s = Math.sqrt((SKY_W * SKY_H * 0.55) / Math.max(n, 6)) - LABEL_PAD;
+  return Math.max(0.055, Math.min(0.14, s));
 }
 
 // Per-frame sky→screen mapping. Positions stretch per-axis to fill the

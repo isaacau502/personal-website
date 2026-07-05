@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SKY_W, SKY_H, GRID_CELL, placeInSky, skyToScreen, skyPanel, partingOffset } from './sky.js';
+import { SKY_W, SKY_H, adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset } from './sky.js';
 
 // deterministic rand for placement tests
 function lcg(seed) {
@@ -24,17 +24,15 @@ describe('placeInSky', () => {
     }
   });
 
-  it('never lets two placements touch while free cells remain (mixed scales)', () => {
+  it('keeps figures from overlapping at comfortable density (mixed scales)', () => {
     const rand = lcg(11);
-    // seed with an oversized hand-placed figure — it must block ALL the
-    // cells it covers, not just its center (the old bug)
+    // seed with an oversized hand-placed figure — best-candidate must route
+    // around it like anything else
     const placed = [{ x: 0.40, y: 0.02, scale: 0.14 }];
-    const cols = Math.floor(SKY_W / GRID_CELL);
-    const rows = Math.floor((SKY_H - GRID_CELL * 0.5) / GRID_CELL);
-    // 0.06/0.078 both fit one cell incl. label pad; the seed claims several cells
-    const count = cols * rows - 9;
-    for (let i = 0; i < count; i++) {
-      placed.push(placeInSky(placed, i % 2 ? 0.078 : 0.06, rand));
+    const n = 20;
+    const scaleFor = (i) => (i % 2 ? adaptiveScale(n) : adaptiveScale(n) * 0.85);
+    for (let i = 0; i < n; i++) {
+      placed.push(placeInSky(placed, scaleFor(i), rand));
     }
     for (let a = 0; a < placed.length; a++) {
       for (let b = a + 1; b < placed.length; b++) {
@@ -46,11 +44,40 @@ describe('placeInSky', () => {
     }
   });
 
-  it('still places (with overlap allowed) once the sky is full', () => {
+  it('spreads a sparse sky instead of clumping', () => {
+    const rand = lcg(29);
+    const placed = [];
+    for (let i = 0; i < 6; i++) placed.push(placeInSky(placed, 0.1, rand));
+    // every figure should have real clear air at this density
+    for (let a = 0; a < placed.length; a++) {
+      let nearest = Infinity;
+      for (let b = 0; b < placed.length; b++) {
+        if (a === b) continue;
+        const dx = placed[a].x - placed[b].x;
+        const dy = placed[a].y - placed[b].y;
+        nearest = Math.min(nearest, Math.hypot(dx, dy));
+      }
+      expect(nearest).toBeGreaterThan(0.14); // > combined half-footprints
+    }
+  });
+
+  it('is deterministic for the same occupied list and seed', () => {
+    const a = placeInSky([{ x: 0.2, y: 0.2, scale: 0.1 }], 0.09, lcg(5));
+    const b = placeInSky([{ x: 0.2, y: 0.2, scale: 0.1 }], 0.09, lcg(5));
+    expect(a).toEqual(b);
+  });
+
+  it('still places (degrading gracefully) once the sky is crowded', () => {
     const rand = lcg(13);
     const placed = [];
     for (let i = 0; i < 80; i++) placed.push(placeInSky(placed, 0.12, rand));
     expect(placed).toHaveLength(80);
+  });
+
+  it('adaptiveScale grows figures on an empty sky and shrinks on a full one', () => {
+    expect(adaptiveScale(4)).toBeGreaterThan(adaptiveScale(30));
+    expect(adaptiveScale(4)).toBeLessThanOrEqual(0.14);
+    expect(adaptiveScale(200)).toBeGreaterThanOrEqual(0.055);
   });
 });
 

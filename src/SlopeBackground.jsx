@@ -1,7 +1,7 @@
 import { Component, createRef } from 'react';
 import { drawConstellation } from './constellation/draw.js';
 import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
-import { placeInSky, skyToScreen, skyPanel, partingOffset } from './constellation/sky.js';
+import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset } from './constellation/sky.js';
 
 const mono = 'ui-monospace, monospace';
 
@@ -355,15 +355,21 @@ class SlopeBackground extends Component {
     // ---- shared-sky model: projects are seeds; visitor records join later.
     // ?skyfill=N adds mock visitors (dev/QA) through the same occupancy grid
     // the Worker will use, so a filled sky is provable before the API exists.
-    this.skyRecords = PROJECT_CONSTELLATIONS.map((fig, i) => ({
-      fig, place: fig.place, win: SKY_WINDOWS[i], project: true,
-    }));
     const fillN = Math.min(60, parseInt(new URLSearchParams(window.location.search).get('skyfill'), 10) || 0);
+    // density-adaptive layout: figure size and spread scale with the count —
+    // a near-empty sky shows big, evenly spread figures; a filling one packs.
+    const aScale = adaptiveScale(PROJECT_CONSTELLATIONS.length + fillN);
+    const projMult = Math.max(1, Math.min(1.45, aScale / 0.09));
+    this.skyRecords = PROJECT_CONSTELLATIONS.map((fig, i) => ({
+      fig,
+      place: { ...fig.place, scale: fig.place.scale * projMult },
+      win: SKY_WINDOWS[i], project: true,
+    }));
     if (fillN > 0) {
       const occupied = this.skyRecords.map((r) => r.place);
       for (let i = 0; i < fillN; i++) {
         const geom = PROJECT_CONSTELLATIONS[(i * 7 + 3) % PROJECT_CONSTELLATIONS.length];
-        const scale = 0.06 + rnd() * 0.018; // ≤0.078: one grid cell incl. label pad
+        const scale = aScale * (0.85 + rnd() * 0.3);
         const place = placeInSky(occupied, scale, rnd);
         occupied.push(place);
         const w0 = 0.10 + (i / Math.max(fillN, 1)) * 0.62;

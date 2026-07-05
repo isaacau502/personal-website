@@ -54,7 +54,9 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     ctx.stroke();
   }
 
-  // stars — glow underlay + twinkling core; the newest star is dusk amber
+  // stars — glow underlay + twinkling core; the newest star is dusk amber.
+  // Twinkle is radius AND brightness, per-star frequency/phase, so the sky
+  // visibly shimmers instead of breathing in lockstep.
   const baseR = Math.min(panel.w, panel.h) * 0.018;
   for (let k = 0; k < stars.length; k++) {
     const s = stars[k];
@@ -62,11 +64,12 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     if (cr <= 0.002) continue;
     const x = X(s), y = Y(s);
     const newest = s.id === newestId;
-    const tw = 1 + Math.sin(t * 1.5 + s.x * 10 + s.y * 7) * 0.16;
+    const tw = 1 + Math.sin(t * (1.1 + s.x * 0.9) + s.y * 20 + k * 2.1) * 0.14;
+    const twA = 0.72 + 0.28 * Math.sin(t * (1.6 + s.y * 1.2) + s.x * 31 + k * 1.7);
     const rad = baseR * (0.5 + s.size * 0.75) * cr * tw;
     const glowCol = newest ? palette.amber : palette.glow;
     const glowR = rad * (newest ? 3.4 : 2.6);
-    const glowA = (newest ? 0.3 : 0.16) * alpha * cr;
+    const glowA = (newest ? 0.3 : 0.16) * alpha * cr * (0.8 + 0.2 * twA);
     const gl = ctx.createRadialGradient(x, y, 0, x, y, glowR);
     gl.addColorStop(0, `rgba(${glowCol},${glowA.toFixed(3)})`);
     gl.addColorStop(1, `rgba(${glowCol},0)`);
@@ -76,7 +79,7 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     ctx.fill();
     ctx.fillStyle = newest
       ? `rgba(${palette.amber},${(0.95 * alpha * cr).toFixed(3)})`
-      : `rgba(${palette.star},${(alpha * (0.55 + 0.3 * s.size) * cr).toFixed(3)})`;
+      : `rgba(${palette.star},${(alpha * (0.55 + 0.3 * s.size) * cr * twA).toFixed(3)})`;
     ctx.beginPath();
     ctx.arc(x, y, rad, 0, 7);
     ctx.fill();
