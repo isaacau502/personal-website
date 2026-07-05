@@ -458,6 +458,11 @@ class SlopeBackground extends Component {
     const airLate = smooth(0.7, 1, this.sm.air);               // long hang time before "You've made it"
     const descent = Math.min(1, airLate * 0.8 + preLand * 0.2);
 
+    // ---- NIGHT: mid-air the dusk deepens to true night for the signature sky,
+    // then lifts again before descent so the landing whiteout still reads
+    const night = smooth(0.32, 0.58, this.sm.air) * (1 - smooth(0.80, 0.96, this.sm.air + preLand));
+    this._night = night;
+
     // deceleration hits hard the instant "Send it" appears, reaches a crawl through
     // "Nothing but sky", then picks back up on descent toward the sculpture
     const decelStrength = Math.max(0, Math.min(1, this.props.decel ?? 0.92));
@@ -519,6 +524,30 @@ class SlopeBackground extends Component {
       ctx.fillStyle = sun;
       ctx.fillRect(-W * 0.1, -H * 0.1, W * 1.2, horizon + 10 + H * 0.1);
       ctx.globalAlpha = 1;
+    }
+
+    // ---- NIGHT SKY (signature beat) — the dusk deepens to true night ----
+    if (night > 0.01) {
+      const na = night * (1 - fall);
+      const ng = ctx.createLinearGradient(0, -H * 0.1, 0, H * 1.05);
+      ng.addColorStop(0, `rgba(6,12,30,${(na * 0.96).toFixed(3)})`);
+      ng.addColorStop(0.55, `rgba(10,20,44,${(na * 0.9).toFixed(3)})`);
+      ng.addColorStop(1, `rgba(20,34,62,${(na * 0.62).toFixed(3)})`);
+      ctx.fillStyle = ng;
+      ctx.fillRect(-W * 0.1, -H * 0.1, W * 1.2, H * 1.2);
+
+      // ambient field stars — static positions, gentle seconds-based twinkle
+      const sec = t * 0.001;
+      for (let i = 0; i < 90; i++) {
+        const rx = this.rand[(i * 2) % 600], ry = this.rand[(i * 2 + 1) % 600];
+        const sx = -W * 0.1 + rx * W * 1.2;
+        const sy = -H * 0.1 + ry * H * 0.92;
+        const tw = 0.55 + 0.45 * Math.sin(sec * (0.6 + rx) + i * 1.7);
+        const sa = na * (0.14 + 0.5 * this.rand[(i * 3 + 5) % 600]) * tw;
+        if (sa <= 0.02) continue;
+        ctx.fillStyle = `rgba(226,236,250,${sa.toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 0.6 + this.rand[(i * 5 + 11) % 600] * 1.1, 0, 7); ctx.fill();
+      }
     }
 
     // ---- RIDGES ----
@@ -640,8 +669,9 @@ class SlopeBackground extends Component {
     }
 
     // ---- AIRBORNE WHITE FLASH + falling flakes ----
+    // the white wash fights the night sky — fade it out as night deepens
     if (lift > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${lift * 0.12})`;
+      ctx.fillStyle = `rgba(255,255,255,${(lift * 0.12 * (1 - night)).toFixed(3)})`;
       ctx.fillRect(-W * 0.1, -H * 0.1, W * 1.2, H * 1.2);
     }
 
@@ -1635,7 +1665,8 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          <section data-screen-label="Airborne" style={{ height: '500vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '260vh' }}>
+          {/* 640vh: the extra 140vh over the original 500vh is the night-sky signature dwell */}
+          <section data-screen-label="Airborne" style={{ height: '640vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '260vh' }}>
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#dbe7f4' }}>— APPLIED TO CRASH DETECTION —</div>
               <h2 style={{ margin: 0, fontSize: 'clamp(32px, 5vw, 64px)', lineHeight: 1, textTransform: 'uppercase', color: '#f4f8fd' }}>35% Lighter</h2>
