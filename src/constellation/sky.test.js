@@ -100,6 +100,32 @@ describe('skyToScreen / skyPanel', () => {
   });
 });
 
+describe('separatePanels', () => {
+  const panel = (x0, y0, w) => ({ x0, y0, w, h: w });
+  const overlapFrac = (A, B) => {
+    const d = Math.hypot((A.x0 + A.w / 2) - (B.x0 + B.w / 2), (A.y0 + A.h / 2) - (B.y0 + B.h / 2));
+    return 1 - d / (A.w / 2 + B.w / 2);
+  };
+
+  it('pushes a heavily overlapping pair apart to the cap', () => {
+    const panels = [panel(100, 100, 120), panel(110, 108, 120)];
+    // dynamically import to avoid stale binding issues in test collection
+    return import('./sky.js').then(({ separatePanels }) => {
+      separatePanels(panels);
+      expect(overlapFrac(panels[0], panels[1])).toBeLessThanOrEqual(0.16);
+    });
+  });
+
+  it('leaves clear pairs untouched', () => {
+    return import('./sky.js').then(({ separatePanels }) => {
+      const panels = [panel(0, 0, 100), panel(400, 400, 100)];
+      const before = JSON.stringify(panels);
+      separatePanels(panels);
+      expect(JSON.stringify(panels)).toBe(before);
+    });
+  });
+});
+
 describe('partingOffset', () => {
   const rect = { x0: 500, x1: 940, y0: 320, y1: 580 }; // centered form zone
   const panelAt = (cx, cy) => ({ x0: cx - 60, y0: cy - 60, w: 120, h: 120 });

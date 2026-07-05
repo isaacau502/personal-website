@@ -1,7 +1,7 @@
 import { Component, createRef } from 'react';
 import { drawConstellation } from './constellation/draw.js';
 import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
-import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset } from './constellation/sky.js';
+import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separatePanels } from './constellation/sky.js';
 
 const mono = 'ui-monospace, monospace';
 
@@ -369,7 +369,7 @@ class SlopeBackground extends Component {
       const occupied = this.skyRecords.map((r) => r.place);
       for (let i = 0; i < fillN; i++) {
         const geom = PROJECT_CONSTELLATIONS[(i * 7 + 3) % PROJECT_CONSTELLATIONS.length];
-        const scale = aScale * (0.85 + rnd() * 0.3);
+        const scale = aScale * (0.72 + rnd() * 0.55);
         const place = placeInSky(occupied, scale, rnd);
         occupied.push(place);
         const w0 = 0.10 + (i / Math.max(fillN, 1)) * 0.62;
@@ -860,7 +860,7 @@ class SlopeBackground extends Component {
       size: Math.max(0.5, Math.min(2, st.size * (0.85 + r() * 0.4))),
     }));
     const occupied = this.skyRecords.map((rec) => rec.place);
-    const scale = adaptiveScale(this.skyRecords.length + 1) * (0.95 + r() * 0.15);
+    const scale = adaptiveScale(this.skyRecords.length + 1) * (0.78 + r() * 0.5);
     this._signing = {
       fig: { name: value, stars, edges: geom.edges },
       place: placeInSky(occupied, scale, r),
@@ -968,12 +968,17 @@ class SlopeBackground extends Component {
       const sig = this._sigVis || 0;
       // the invite's reserved zone (screen space) — the sky parts around it
       const formRect = { x0: W / 2 - 330, x1: W / 2 + 330, y0: H / 2 - 150, y1: H / 2 + 150 };
+      // two passes: compute parted panels, cap pairwise overlap, then draw
+      const visible = [];
       for (const rec of this.skyRecords) {
         const grow = smoothW(rec.win[0], rec.win[1], this._skyGrow);
         if (grow <= 0.002) continue;
         const panel = skyPanel(rec.place, m);
         const off = partingOffset(panel, formRect, sig);
-        const shifted = { x0: panel.x0 + off.dx, y0: panel.y0 + off.dy, w: panel.w, h: panel.h };
+        visible.push({ rec, grow, panel: { x0: panel.x0 + off.dx, y0: panel.y0 + off.dy, w: panel.w, h: panel.h } });
+      }
+      separatePanels(visible.map((v) => v.panel));
+      for (const { rec, grow, panel: shifted } of visible) {
         // figures still overlapping the zone after parting dim locally;
         // the rest of the sky keeps (nearly) full brightness
         const still = sig > 0.01 &&
@@ -999,8 +1004,8 @@ class SlopeBackground extends Component {
         const sgn = this._signing;
         if (sgn.born === null) sgn.born = t;
         const age = (t - sgn.born) / 1000;
-        const grow = smoothW(0.1, 2.4, age);
-        const drift = smoothW(3.2, 4.9, age);
+        const grow = smoothW(0.1, 3.2, age);
+        const drift = smoothW(4.2, 6.4, age);
         const target = skyPanel(sgn.place, m);
         const tOff = partingOffset(target, formRect, sig);
         const tx = target.x0 + tOff.dx, ty = target.y0 + tOff.dy;

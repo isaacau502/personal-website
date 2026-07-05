@@ -79,6 +79,34 @@ export function skyPanel(place, m) {
   };
 }
 
+// Overlap cap: one cheap relaxation pass over the rendered panels. Parting
+// (or a crowded sky) can squeeze two figures into the same spot — this
+// pushes any pair apart until their overlap is at most maxOverlapFrac of
+// their combined radius. Mutates panels in place; order-stable.
+export function separatePanels(panels, maxOverlapFrac = 0.15, iterations = 2) {
+  for (let it = 0; it < iterations; it++) {
+    for (let a = 0; a < panels.length; a++) {
+      for (let b = a + 1; b < panels.length; b++) {
+        const A = panels[a], B = panels[b];
+        const ra = A.w * 0.5, rb = B.w * 0.5;
+        const ax = A.x0 + ra, ay = A.y0 + A.h * 0.5;
+        const bx = B.x0 + rb, by = B.y0 + B.h * 0.5;
+        let dx = bx - ax, dy = by - ay;
+        let d = Math.hypot(dx, dy);
+        const minD = (ra + rb) * (1 - maxOverlapFrac);
+        if (d >= minD) continue;
+        if (d < 1e-3) { dx = 1; dy = 0; d = 1; }
+        const push = (minD - d) / 2;
+        A.x0 -= (dx / d) * push;
+        A.y0 -= (dy / d) * push;
+        B.x0 += (dx / d) * push;
+        B.y0 += (dy / d) * push;
+      }
+    }
+  }
+  return panels;
+}
+
 // The sky parts for the invite: figures near a reserved screen rect glide
 // outward along an elliptical falloff. Returns {dx, dy} for a panel; t is
 // the parting strength 0..1 (the form's visibility). Pure & reversible —
