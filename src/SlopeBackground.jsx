@@ -312,6 +312,7 @@ class SlopeBackground extends Component {
     this.landPageRef = createRef();
     this.sigRef = createRef();
     this.sigInputRef = createRef();
+    this.sigStatusRef = createRef();
     this.navRef = createRef();
     this.tdkRef = createRef();
     this.mlRef = createRef();
@@ -356,6 +357,7 @@ class SlopeBackground extends Component {
     // ?skyfill=N adds mock visitors (dev/QA) through the same occupancy grid
     // the Worker will use, so a filled sky is provable before the API exists.
     const fillN = Math.min(60, parseInt(new URLSearchParams(window.location.search).get('skyfill'), 10) || 0);
+    this._fillN = fillN; // mock mode: skip the /api/sky fetch, keep the fill deterministic
     // density-adaptive layout: figure size and spread scale with the count —
     // a near-empty sky shows big, evenly spread figures; a filling one packs.
     const aScale = adaptiveScale(PROJECT_CONSTELLATIONS.length + fillN);
@@ -458,6 +460,21 @@ class SlopeBackground extends Component {
     window.addEventListener('resize', this.resize);
     this.resize();
     this.raf = requestAnimationFrame(this.loop);
+
+    // the shared sky: visitor constellations join the project seeds. Layout
+    // is client-derived (records store only figures) — a seeded LCG over the
+    // createdAt-sorted list keeps placement stable across reloads. Offline or
+    // pre-deploy the fetch fails silently and the sky stays projects-only.
+    if (!this._fillN) {
+      fetch('/api/sky')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.constellations) && data.constellations.length) {
+            this.applySkyFromApi(data.constellations);
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   componentWillUnmount() {
@@ -774,6 +791,10 @@ class SlopeBackground extends Component {
       if (sa < 0.5 && this.sigInputRef.current === document.activeElement) {
         this.sigInputRef.current.blur();
       }
+      // generation takes seconds — keep the wait alive with a slow pulse
+      if (this._pending && this.sigStatusRef.current) {
+        this.sigStatusRef.current.textContent = 'charting the sky ' + '·'.repeat(1 + (Math.floor(t / 450) % 3));
+      }
     }
     // nav re-inks pale while the sky is night so it stays legible
     if (this.navRef.current) {
@@ -836,6 +857,34 @@ class SlopeBackground extends Component {
     }
   }
 
+  // Rebuild the sky from API records: project seeds + one placed panel per
+  // visitor figure, density-adaptive exactly like the ?skyfill mock path.
+  applySkyFromApi = (records) => {
+    const aScale = adaptiveScale(PROJECT_CONSTELLATIONS.length + records.length);
+    const projMult = Math.max(1, Math.min(1.45, aScale / 0.09));
+    const recs = PROJECT_CONSTELLATIONS.map((fig, i) => ({
+      fig,
+      place: { ...fig.place, scale: fig.place.scale * projMult },
+      win: SKY_WINDOWS[i], project: true,
+    }));
+    let s = 88911;
+    const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    const occupied = recs.map((rec) => rec.place);
+    records.forEach((rec, i) => {
+      if (!rec || !Array.isArray(rec.stars) || !Array.isArray(rec.edges)) return;
+      const scale = aScale * (0.72 + r() * 0.55);
+      const place = placeInSky(occupied, scale, r);
+      occupied.push(place);
+      const w0 = 0.10 + (i / Math.max(records.length, 1)) * 0.62;
+      recs.push({
+        fig: { name: rec.name, stars: rec.stars, edges: rec.edges },
+        place, win: [w0, Math.min(w0 + 0.28, 0.999)],
+        project: false, depth: 0.55 + r() * 0.45,
+      });
+    });
+    this.skyRecords = recs;
+  };
+
   // Enter submits the description and starts the forming animation.
   onSignatureKey = (e) => {
     if (e.key !== 'Enter') return;
@@ -846,10 +895,65 @@ class SlopeBackground extends Component {
     e.target.blur();
   };
 
-  // MOCK generator: hash-seeded variation of a project geometry stands in
-  // for the LLM until the API lands — same record shape, same animation.
+  setSigStatus = (msg) => {
+    const el = this.sigStatusRef.current;
+    if (!el) return;
+    el.textContent = msg || 'press enter · it stays here for everyone after you';
+    el.style.color = msg ? 'rgba(255,214,160,0.8)' : 'rgba(201,214,226,0.4)';
+  };
+
+  // POST the description; the pipeline moderates, renders and persists.
+  // Friendly failures re-open the form; infra failures degrade to the local
+  // procedural sketch so the reveal still happens (just not persisted).
   startSignature = (value) => {
-    if (this._signing) return;
+    if (this._signing || this._pending) return;
+    this._pending = true;
+    this.setSigStatus('charting the sky…');
+    if (this.sigInputRef.current) this.sigInputRef.current.disabled = true;
+    fetch('/api/sign', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ description: value }),
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body.record) return this.beginForming(body.record);
+        const err = body.error || '';
+        if (err === 'rejected') return this.failSignature('the sky declined that one — try something else');
+        if (err === 'rate-limited') return this.failSignature('one constellation at a time — try again in a few minutes');
+        if (err === 'turnstile-failed') return this.failSignature('couldn’t verify you’re human — reload and try again');
+        if (res.status === 400) return this.failSignature('try something shorter and simpler');
+        // sky-is-full / generation flake / moderation outage → degraded mode
+        return this.beginForming(this.proceduralRecord(value));
+      })
+      .catch(() => this.beginForming(this.proceduralRecord(value)));
+  };
+
+  failSignature = (msg) => {
+    this._pending = false;
+    this.setSigStatus(msg);
+    if (this.sigInputRef.current) this.sigInputRef.current.disabled = false;
+  };
+
+  beginForming = (record) => {
+    this._pending = false;
+    this.setSigStatus(null);
+    if (this.sigInputRef.current) this.sigInputRef.current.disabled = false;
+    const h = [...record.name].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) >>> 0), 7) || 1;
+    let s = h;
+    const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    const occupied = this.skyRecords.map((rec) => rec.place);
+    const scale = adaptiveScale(this.skyRecords.length + 1) * (0.78 + r() * 0.5);
+    this._signing = {
+      fig: { name: record.name, stars: record.stars, edges: record.edges },
+      place: placeInSky(occupied, scale, r),
+      born: null,
+    };
+  };
+
+  // zero-server fallback (design doc: degraded mode): hash-seeded variation
+  // of a project geometry — same record shape, same animation, not persisted.
+  proceduralRecord = (value) => {
     const h = [...value].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) >>> 0), 7) || 1;
     let s = h;
     const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
@@ -860,13 +964,7 @@ class SlopeBackground extends Component {
       y: Math.max(0, Math.min(1, st.y + (r() - 0.5) * 0.09)),
       size: Math.max(0.5, Math.min(2, st.size * (0.85 + r() * 0.4))),
     }));
-    const occupied = this.skyRecords.map((rec) => rec.place);
-    const scale = adaptiveScale(this.skyRecords.length + 1) * (0.78 + r() * 0.5);
-    this._signing = {
-      fig: { name: value, stars, edges: geom.edges },
-      place: placeInSky(occupied, scale, r),
-      born: null,
-    };
+    return { name: value, stars, edges: geom.edges };
   };
 
   progEl(el) {
@@ -1948,6 +2046,7 @@ class SlopeBackground extends Component {
           }
           .sig-input:focus { border-bottom-color: rgba(255,214,160,0.9); }
           .sig-input::placeholder { color: rgba(201,214,226,0.28); }
+          .sig-input:disabled { opacity: 0.45; }
         `}</style>
         <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', fontFamily: mono, fontSize: 12, letterSpacing: '0.18em' }}>
           <span style={{ color: 'var(--nav-dim, #33455c)', transition: 'color 0.45s ease' }}>IA</span>
@@ -1983,7 +2082,7 @@ class SlopeBackground extends Component {
             aria-label="Describe your constellation"
             onKeyDown={this.onSignatureKey}
           />
-          <div style={{ fontSize: 11, letterSpacing: '0.1em', color: 'rgba(201,214,226,0.4)' }}>press enter · it stays here for everyone after you</div>
+          <div ref={this.sigStatusRef} style={{ fontSize: 11, letterSpacing: '0.1em', color: 'rgba(201,214,226,0.4)', transition: 'color 0.3s ease' }}>press enter · it stays here for everyone after you</div>
         </div>
 
         <div style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
