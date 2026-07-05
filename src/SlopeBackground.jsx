@@ -9,7 +9,7 @@ const mono = 'ui-monospace, monospace';
 const SKY_FIGURES = [
   { panel: { x: 0.07, y: 0.10, w: 0.17, h: 0.30 }, win: [0.00, 0.38] }, // tdk
   { panel: { x: 0.64, y: 0.08, w: 0.16, h: 0.27 }, win: [0.18, 0.56] }, // ovis
-  { panel: { x: 0.34, y: 0.26, w: 0.20, h: 0.26 }, win: [0.38, 0.76] }, // llm research
+  { panel: { x: 0.32, y: 0.12, w: 0.20, h: 0.24 }, win: [0.38, 0.76] }, // llm research (high center-left — clear of the invite form at 43–57% y)
   { panel: { x: 0.76, y: 0.44, w: 0.15, h: 0.26 }, win: [0.58, 0.96] }, // dropin
 ];
 const HEADLINE_SIZE = 'clamp(40px, 6vw, 88px)';
@@ -715,9 +715,10 @@ class SlopeBackground extends Component {
       el.style.transform = `translateY(${(dd * 60).toFixed(1)}px)`;
     }
 
-    // ---- SIGNATURE FORM (rides the night factor; DOM overlay, not canvas) ----
-    // _sigVis also dims the project star chart: the invite moment gets a clean sky
-    this._sigVis = smooth(0.45, 0.8, night);
+    // ---- SIGNATURE FORM (DOM overlay, not canvas) ----
+    // Choreography: the project chart forms and HOLDS first (viewing beat),
+    // then the invite fades in while the chart dims to ~38% — never to zero.
+    this._sigVis = smooth(0.66, 0.76, this.sm.air) * (1 - smooth(0.80, 0.92, this.sm.air + preLand));
     if (this.sigRef.current) {
       const sa = this._sigVis;
       const sig = this.sigRef.current;
@@ -757,7 +758,9 @@ class SlopeBackground extends Component {
     }
 
     // ---- PROJECT GRAPHS : TDK lineage tree (right of "The approach") + sky constellation (airborne) ----
-    this._skyGrow = smooth(0.1, 0.85, this.sm.air);
+    // chart formation completes by mid-dwell so it gets a clean viewing hold
+    // (sm.air ~0.55–0.66) before the invite arrives at 0.66
+    this._skyGrow = smooth(0.08, 0.55, this.sm.air);
     this._skyVis = Math.max(0, Math.min(1, lift)) * (1 - smooth(0.1, 0.55, descent));
     this.drawGraph(t);
     // Ovis patient constellation + wellness dial (left of "It rises ahead")
@@ -899,7 +902,7 @@ class SlopeBackground extends Component {
         if (grow <= 0.002) continue;
         drawConstellation(gctx, fig.stars, fig.edges, {
           x0: W * panel.x, y0: H * panel.y, w: W * panel.w, h: H * panel.h,
-        }, { t: sec, grow, alpha: this._skyVis * (1 - (this._sigVis || 0)), label: fig.name });
+        }, { t: sec, grow, alpha: this._skyVis * (1 - 0.62 * (this._sigVis || 0)), label: fig.name });
       }
     }
   }
