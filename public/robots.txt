@@ -1,12 +1,14 @@
-# Search & social crawlers: welcome (this is a public portfolio)
+# Search crawlers & AI answer/assistant engines: welcome (this is a public portfolio,
+# and these surface the site to people researching it — Perplexity, Claude, ChatGPT's
+# ChatGPT-User/OAI-SearchBot, Google Search, etc.)
 User-agent: *
 Allow: /
 
-# AI training crawlers: not welcome (no SEO impact — these don't affect ranking)
+# Pure model-training / bulk-scrape crawlers: blocked. These only harvest content for
+# training sets; they don't drive discovery, and blocking them has no SEO impact.
+# (ChatGPT & Google answer paths use separate agents — ChatGPT-User, OAI-SearchBot,
+# Googlebot — which stay allowed above, so answering about the site still works.)
 User-agent: GPTBot
-Disallow: /
-
-User-agent: ClaudeBot
 Disallow: /
 
 User-agent: anthropic-ai
@@ -19,9 +21,6 @@ User-agent: CCBot
 Disallow: /
 
 User-agent: Bytespider
-Disallow: /
-
-User-agent: PerplexityBot
 Disallow: /
 
 Sitemap: https://isaacau.com/sitemap.xml
