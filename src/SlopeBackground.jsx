@@ -1,7 +1,7 @@
 import { Component, createRef } from 'react';
 import { drawConstellation } from './constellation/draw.js';
 import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
-import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separatePanels } from './constellation/sky.js';
+import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separatePanels, skyLean } from './constellation/sky.js';
 
 const mono = 'ui-monospace, monospace';
 
@@ -1151,6 +1151,7 @@ class SlopeBackground extends Component {
           label: labelFits ? rec.fig.name : null,
           labelAlpha: rec.project ? 0.75 : 0.5,
           newestId: rec.newestId ?? null,
+          rot: skyLean(rec.place),
         });
       }
 
@@ -1176,6 +1177,7 @@ class SlopeBackground extends Component {
         drawConstellation(gctx, sgn.fig.stars, sgn.fig.edges, panel, {
           t: sec, grow, alpha: this._skyVis,
           label: sgn.fig.name, labelAlpha: 0.7,
+          rot: skyLean(sgn.place) * drift, // upright center-stage, leans in as it settles
         });
         if (drift >= 1) {
           this.skyRecords.push({

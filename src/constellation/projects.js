@@ -101,12 +101,14 @@ const DROPIN = {
 // place = persistent sky-space position (top-left + scale in sky units,
 // see sky.js) — the projects are seeds in the same shared-sky system
 // visitor constellations use, just hand-placed instead of grid-assigned.
-// evenly spaced arc: figure CENTERS sit at x = 0.125 / 0.375 / 0.625 / 0.875
-// (equal gaps, computed at the empty-sky size multiplier) with a gentle
-// vertical stagger — no pair reads closer than any other
-TDK.place = { x: 0.031, y: 0.06, scale: 0.13 };
-LLM.place = { x: 0.274, y: 0.02, scale: 0.14 };
-OVIS.place = { x: 0.534, y: 0.05, scale: 0.125 };
-DROPIN.place = { x: 0.795, y: 0.09, scale: 0.11 };
+// Dome sky: the projects sit on one arc of the great circle around the
+// celestial pole below the page (sky.js POLE, r = 1.55), career order
+// left→right at -14° / -5° / +5° / +14° from vertical — an even arc
+// crowning the invite. center = POLE + r·(sin α, -cos α), place = center
+// - scale/2.
+TDK.place = { x: 0.060, y: 0.131, scale: 0.13 };
+LLM.place = { x: 0.295, y: 0.086, scale: 0.14 };
+OVIS.place = { x: 0.573, y: 0.093, scale: 0.125 };
+DROPIN.place = { x: 0.820, y: 0.141, scale: 0.11 };
 
 export const PROJECT_CONSTELLATIONS = [TDK, OVIS, LLM, DROPIN];

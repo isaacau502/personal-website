@@ -19,6 +19,8 @@ export const SKY_PALETTE = {
 // panel: {x0, y0, w, h} sky-space rect the unit grid maps into
 // opts: t (seconds, twinkle) · alpha (0..1) · grow (0..1 draw-on reveal)
 //       newestId (drawn amber) · label (string) · palette (SKY_PALETTE override)
+//       rot (radians — planisphere lean: figure + label rotate about the
+//       panel center, like constellations around a star chart's pole)
 export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
   const {
     t = 0,
@@ -28,8 +30,16 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     label = null,
     labelAlpha = 0.75,
     palette = SKY_PALETTE,
+    rot = 0,
   } = opts;
   if (alpha <= 0.002 || !stars.length) return;
+  const rotated = Math.abs(rot) > 0.001;
+  if (rotated) {
+    ctx.save();
+    ctx.translate(panel.x0 + panel.w / 2, panel.y0 + panel.h / 2);
+    ctx.rotate(rot);
+    ctx.translate(-(panel.x0 + panel.w / 2), -(panel.y0 + panel.h / 2));
+  }
 
   const byId = new Map(stars.map((s) => [s.id, s]));
   const X = (s) => panel.x0 + s.x * panel.w;
@@ -105,6 +115,7 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     ctx.fillText(spaceOut(label.toUpperCase()), lowX, lowY + 22);
     ctx.textAlign = 'left';
   }
+  if (rotated) ctx.restore();
 }
 
 // smoothstep between edges a..b (same shape as SlopeBackground's smooth())

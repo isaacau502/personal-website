@@ -26,13 +26,17 @@ export const SKY_H = 0.6;
 const LABEL_PAD = 0.024; // sky-units reserved under a figure for its caps label
 const CANDIDATES = 64;
 
+// The celestial pole: the sky is the visible top slice of a huge circle
+// whose center sits far below the page. Figures arrange in the annulus band
+// [R_IN, R_OUT] around it — R_OUT rounds off the top corners, R_IN scoops
+// the bottom-center (where the invite lives). True circle geometry, no
+// drawn border; the dome reads from placement + lean alone.
+export const POLE = { x: SKY_W / 2, y: 1.7 };
+const R_IN = 1.18;
+const R_OUT = 1.7;
+
 export function placeInSky(occupied, scale, rand) {
-  let best = null;
-  let bestScore = -Infinity;
-  for (let k = 0; k < CANDIDATES; k++) {
-    if (bestScore > 1.3) break; // comfortable clear air found — stop sampling
-    const x = rand() * (SKY_W - scale);
-    const y = rand() * (SKY_H - scale - LABEL_PAD);
+  const clearance = (x, y) => {
     let score = Infinity;
     for (const p of occupied) {
       const dx = (x + scale / 2) - (p.x + p.scale / 2);
@@ -41,6 +45,34 @@ export function placeInSky(occupied, scale, rand) {
       const reach = ((scale + p.scale) / 2 + LABEL_PAD) * 1.05;
       score = Math.min(score, Math.hypot(dx, dy) / reach);
     }
+    return score;
+  };
+  let best = null;
+  let bestScore = -Infinity;
+  // evaluate CANDIDATES in-band spots; rejected samples don't count against
+  // the budget (attempt cap keeps a degenerate rand from spinning forever)
+  for (let k = 0, attempts = 0; k < CANDIDATES && attempts < CANDIDATES * 4; attempts++) {
+    if (bestScore > 1.3) break; // comfortable clear air found — stop sampling
+    const x = rand() * (SKY_W - scale);
+    const y = rand() * (SKY_H - scale - LABEL_PAD);
+    // dome band check: the figure's center must sit within the annulus
+    const rr = Math.hypot(x + scale / 2 - POLE.x, y + (scale + LABEL_PAD) / 2 - POLE.y);
+    const f = (scale + LABEL_PAD) / 2;
+    if (rr < R_IN + f * 0.5 || rr > R_OUT - f * 0.5) continue;
+    k++;
+    const score = clearance(x, y);
+    if (score > bestScore) {
+      bestScore = score;
+      best = { x, y, scale };
+    }
+  }
+  if (best) return best;
+  // degenerate fallback (should not happen with a sane rand): place ignoring
+  // the band rather than ever returning null
+  for (let k = 0; k < CANDIDATES; k++) {
+    const x = rand() * (SKY_W - scale);
+    const y = rand() * (SKY_H - scale - LABEL_PAD);
+    const score = clearance(x, y);
     if (score > bestScore) {
       bestScore = score;
       best = { x, y, scale };
@@ -51,10 +83,23 @@ export function placeInSky(occupied, scale, rand) {
 
 // Density-adaptive figure size: few constellations → big figures (the sky
 // belongs to them); a filling sky shrinks everyone smoothly. Area budget:
-// n footprints (figure + label) should cover ~55% of the sky.
+// n footprints (figure + label) should cover ~55% of the dome band
+// (~0.85 of the rect after the corner rounding and bottom-center scoop).
 export function adaptiveScale(n) {
-  const s = Math.sqrt((SKY_W * SKY_H * 0.55) / Math.max(n, 6)) - LABEL_PAD;
+  const s = Math.sqrt((SKY_W * SKY_H * 0.85 * 0.55) / Math.max(n, 6)) - LABEL_PAD;
   return Math.max(0.055, Math.min(0.14, s));
+}
+
+// Planisphere lean: a figure's rotation about its own center so its "up"
+// points away from the celestial pole below the page — everything on the
+// dome tips toward the distant center, labels ride the arcs. With the pole
+// this far down the natural angles stay ±20°ish, so no damping is needed
+// (K=1 = true chart geometry) and every figure stays fully legible.
+export const LEAN = 1;
+export function skyLean(place, k = LEAN) {
+  const dx = place.x + place.scale / 2 - POLE.x;
+  const dy = POLE.y - (place.y + place.scale / 2);
+  return Math.atan2(dx, dy) * k; // 0 = directly above the pole
 }
 
 // Per-frame sky→screen mapping. Positions stretch per-axis to fill the
