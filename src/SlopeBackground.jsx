@@ -887,6 +887,8 @@ class SlopeBackground extends Component {
         nav.style.setProperty('--nav-ink', pale ? '#f4f8fd' : '#17222f');
         nav.style.setProperty('--nav-line', pale ? 'rgba(201,214,226,0.45)' : '#4a5c72');
         nav.style.setProperty('--nav-hover', pale ? '#c9d6e2' : '#4a5c72');
+        // mobile scrim flips with the ink so the bar reads over snow and night sky alike
+        nav.style.setProperty('--nav-bg', pale ? 'rgba(8,16,30,0.38)' : 'rgba(240,244,249,0.68)');
       }
     }
 
@@ -2327,7 +2329,7 @@ class SlopeBackground extends Component {
           .sig-input:disabled { opacity: 0.45; }
         `}</style>
         {/* mobile: tighter type/gaps so all three links fit a 390px row without clipping */}
-        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: mob ? 'center' : 'flex-end', padding: mob ? '16px 12px' : '28px 36px', fontFamily: mono, fontSize: mob ? 11 : 14, letterSpacing: mob ? '0.12em' : '0.16em' }}>
+        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: mob ? 'center' : 'flex-end', padding: mob ? '15px 12px' : '28px 36px', fontFamily: mono, fontSize: mob ? 12.5 : 14, letterSpacing: mob ? '0.13em' : '0.16em', background: mob ? 'var(--nav-bg, rgba(240,244,249,0.68))' : 'none', backdropFilter: mob ? 'blur(10px)' : 'none', WebkitBackdropFilter: mob ? 'blur(10px)' : 'none', transition: 'background 0.45s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 12 : 22 }}>
             <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
               <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block' }} />
