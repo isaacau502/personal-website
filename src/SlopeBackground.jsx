@@ -18,10 +18,6 @@ const MB_HDR0 = 0.44, MB_HDR1 = 0.60;
 const MB_MOTIF0 = 0.50;
 // sig-form anchor on mobile — high enough that the iOS keyboard never covers the input
 const MB_SIG_Y = 0.42;
-// portrait damp on the four project figures' footprints — their hand-placed
-// desktop scales never shrink with density (multiplier floors at 1), which
-// the squeezed portrait axis can't afford
-const MB_PROJ_S = 0.74;
 // name/sub anchor the diagram; kick echoes the section's mono lead-in
 const MB_TITLE = {
   tdk: { kick: '01 · MAY 2026 – PRESENT · INTERNSHIP', name: 'TDK', sub: 'ML Intern' },
@@ -40,6 +36,26 @@ const SKY_WINDOWS = [
   [0.38, 0.76], // llm research
   [0.58, 0.96], // dropin
 ];
+
+// Project seeds are citizens of the shared sky, not landmarks: same
+// density-adaptive size family as visitors (0.72–1.27 × adaptiveScale) and
+// same depth layering, with fixed per-figure draws so the scene stays
+// deterministic without touching the visitor LCG streams. Footprints shrink
+// about their hand-placed centers, so dome positions and lean are unchanged.
+const PROJ_SIZE = [1.12, 1.02, 0.94, 1.07]; // tdk, ovis, llm, dropin
+const PROJ_DEPTH = [0.9, 0.8, 0.95, 0.85];
+function projectSeedRecords(nTotal) {
+  const aScale = adaptiveScale(nTotal);
+  return PROJECT_CONSTELLATIONS.map((fig, i) => {
+    const scale = Math.min(fig.place.scale, aScale * PROJ_SIZE[i]);
+    const d = (fig.place.scale - scale) / 2;
+    return {
+      fig,
+      place: { x: fig.place.x + d, y: fig.place.y + d, scale },
+      win: SKY_WINDOWS[i], project: true, depth: PROJ_DEPTH[i],
+    };
+  });
+}
 
 // mock visitor constellations for layout proofing: ?skyfill=N reuses the
 // project geometries under visitor-ish names, placed by the same occupancy
@@ -405,12 +421,7 @@ class SlopeBackground extends Component {
     // density-adaptive layout: figure size and spread scale with the count —
     // a near-empty sky shows big, evenly spread figures; a filling one packs.
     const aScale = adaptiveScale(PROJECT_CONSTELLATIONS.length + fillN);
-    const projMult = Math.max(1, Math.min(1.45, aScale / 0.09));
-    this.skyRecords = PROJECT_CONSTELLATIONS.map((fig, i) => ({
-      fig,
-      place: { ...fig.place, scale: fig.place.scale * projMult },
-      win: SKY_WINDOWS[i], project: true,
-    }));
+    this.skyRecords = projectSeedRecords(PROJECT_CONSTELLATIONS.length + fillN);
     if (fillN > 0) {
       const occupied = this.skyRecords.map((r) => r.place);
       for (let i = 0; i < fillN; i++) {
@@ -968,12 +979,7 @@ class SlopeBackground extends Component {
       }
     } catch { /* no storage (private mode) — server list only */ }
     const aScale = adaptiveScale(PROJECT_CONSTELLATIONS.length + records.length);
-    const projMult = Math.max(1, Math.min(1.45, aScale / 0.09));
-    const recs = PROJECT_CONSTELLATIONS.map((fig, i) => ({
-      fig,
-      place: { ...fig.place, scale: fig.place.scale * projMult },
-      win: SKY_WINDOWS[i], project: true,
-    }));
+    const recs = projectSeedRecords(PROJECT_CONSTELLATIONS.length + records.length);
     let s = 88911;
     const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     const occupied = recs.map((rec) => rec.place);
@@ -1254,18 +1260,11 @@ class SlopeBackground extends Component {
         y1: fy + hy,
       };
       // two passes: compute parted panels, cap pairwise overlap, then draw
-      // mobile: shrink project footprints about their own center (same center
-      // for any anchor mode, so lean and placement are unchanged)
-      const mbPlace = (p) => {
-        if (!this.mob) return p;
-        const d = p.scale * (1 - MB_PROJ_S) / 2;
-        return { x: p.x + d, y: p.y + d, scale: p.scale * MB_PROJ_S };
-      };
       const visible = [];
       for (const rec of this.skyRecords) {
         const grow = smoothW(rec.win[0], rec.win[1], this._skyGrow);
         if (grow <= 0.002) continue;
-        const panel = skyPanel(rec.project ? mbPlace(rec.place) : rec.place, m);
+        const panel = skyPanel(rec.place, m);
         const off = partingOffset(panel, formRect, sig);
         visible.push({ rec, grow, panel: { x0: panel.x0 + off.dx, y0: panel.y0 + off.dy, w: panel.w, h: panel.h } });
       }
@@ -1281,15 +1280,16 @@ class SlopeBackground extends Component {
         const alpha = this._skyVis * (rec.depth ?? 1) * (1 - (still ? (this.mob ? 0.82 : 0.55) : 0.12) * sig);
         // label only when the caps text fits its figure's footprint —
         // long names on small figures spill into neighbors and read as mess.
-        // mobile: projects always keep their names (they anchor the beat);
-        // visitors get a relaxed spill allowance — portrait's vertical gaps absorb it
+        // one rule for everyone (projects are ordinary citizens here); mobile
+        // gets a relaxed spill allowance — portrait's vertical gaps absorb it
+        const name = this.mob && rec.fig.short ? rec.fig.short : rec.fig.name;
         const labelFits = this.mob
-          ? (rec.project ? shifted.w > 40 : shifted.w > 52 && rec.fig.name.length * 7.4 < shifted.w * 1.8)
-          : shifted.w > 64 && rec.fig.name.length * 7.4 < shifted.w * 1.3;
+          ? shifted.w > 52 && name.length * 7.4 < shifted.w * 1.8
+          : shifted.w > 64 && name.length * 7.4 < shifted.w * 1.3;
         drawConstellation(gctx, rec.fig.stars, rec.fig.edges, shifted, {
           t: sec, grow, alpha,
-          label: labelFits ? (this.mob && rec.fig.short ? rec.fig.short : rec.fig.name) : null,
-          labelAlpha: rec.project ? 0.75 : 0.5,
+          label: labelFits ? name : null,
+          labelAlpha: 0.5,
           newestId: rec.newestId ?? null,
           rot: skyLean(rec.place),
         });
