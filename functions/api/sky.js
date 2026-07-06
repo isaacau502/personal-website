@@ -31,11 +31,14 @@ export async function onRequestGet(context) {
 
     records.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 
+    // Browsers must always revalidate (your own signature reappearing on
+    // refresh is non-negotiable); only the EDGE holds the 5-min KV shield.
+    // s-maxage also drives the worker-internal caches.default expiry.
     const response = new Response(JSON.stringify({ constellations: records }), {
       status: 200,
       headers: {
         'content-type': 'application/json',
-        'cache-control': `public, max-age=${CACHE_TTL}`,
+        'cache-control': `public, max-age=0, must-revalidate, s-maxage=${CACHE_TTL}`,
       },
     });
     context.waitUntil(cache.put(cacheKey, response.clone()));
