@@ -55,6 +55,7 @@ const OVIS = (() => {
 // LLM — two detection boxes, linked: 4 corners each, one grounding edge
 const LLM = {
   name: 'llm research',
+  short: 'llm', // portrait label — the full name runs into OVIS next door
   stars: [
     { id: 's0', x: 0.06, y: 0.16, size: 1.0 },  // box A corners
     { id: 's1', x: 0.52, y: 0.10, size: 1.0 },

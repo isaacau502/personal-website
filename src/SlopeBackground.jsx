@@ -18,6 +18,10 @@ const MB_HDR0 = 0.44, MB_HDR1 = 0.60;
 const MB_MOTIF0 = 0.50;
 // sig-form anchor on mobile — high enough that the iOS keyboard never covers the input
 const MB_SIG_Y = 0.42;
+// portrait damp on the four project figures' footprints — their hand-placed
+// desktop scales never shrink with density (multiplier floors at 1), which
+// the squeezed portrait axis can't afford
+const MB_PROJ_S = 0.74;
 // name/sub anchor the diagram; kick echoes the section's mono lead-in
 const MB_TITLE = {
   tdk: { kick: '01 · MAY 2026 – PRESENT · INTERNSHIP', name: 'TDK', sub: 'ML Intern' },
@@ -1250,11 +1254,18 @@ class SlopeBackground extends Component {
         y1: fy + hy,
       };
       // two passes: compute parted panels, cap pairwise overlap, then draw
+      // mobile: shrink project footprints about their own center (same center
+      // for any anchor mode, so lean and placement are unchanged)
+      const mbPlace = (p) => {
+        if (!this.mob) return p;
+        const d = p.scale * (1 - MB_PROJ_S) / 2;
+        return { x: p.x + d, y: p.y + d, scale: p.scale * MB_PROJ_S };
+      };
       const visible = [];
       for (const rec of this.skyRecords) {
         const grow = smoothW(rec.win[0], rec.win[1], this._skyGrow);
         if (grow <= 0.002) continue;
-        const panel = skyPanel(rec.place, m);
+        const panel = skyPanel(rec.project ? mbPlace(rec.place) : rec.place, m);
         const off = partingOffset(panel, formRect, sig);
         visible.push({ rec, grow, panel: { x0: panel.x0 + off.dx, y0: panel.y0 + off.dy, w: panel.w, h: panel.h } });
       }
@@ -1277,7 +1288,7 @@ class SlopeBackground extends Component {
           : shifted.w > 64 && rec.fig.name.length * 7.4 < shifted.w * 1.3;
         drawConstellation(gctx, rec.fig.stars, rec.fig.edges, shifted, {
           t: sec, grow, alpha,
-          label: labelFits ? rec.fig.name : null,
+          label: labelFits ? (this.mob && rec.fig.short ? rec.fig.short : rec.fig.name) : null,
           labelAlpha: rec.project ? 0.75 : 0.5,
           newestId: rec.newestId ?? null,
           rot: skyLean(rec.place),
