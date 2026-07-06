@@ -1190,9 +1190,10 @@ class SlopeBackground extends Component {
       const s = this.scrubTall(this.approachEl);
       const grow = this.mGrow(s.grow), vis = s.vis;
       if (vis > 0.002 && grow > 0.002) {
-        // mobile top stays under the horizon band so the tree sits on snow while the lip rises
+        // mobile top stays under the horizon band so the tree sits on snow while the lip
+        // rises; height keyed off width so the tree stays square-ish, not stretched tall
         const panel = this.mob
-          ? { x0: W * 0.10, x1: W * 0.90, y0: H * 0.30, y1: H * 0.88 }
+          ? { x0: W * 0.06, x1: W * 0.94, y0: H * 0.30, y1: Math.min(H * 0.88, H * 0.30 + W * 0.92) }
           : { x0: W * 0.54, x1: W * 0.93, y0: H * 0.18, y1: H * 0.82 };
         this.renderGraph(this.graphA, { grow, vis, t, dark: true, panel });
       }
@@ -1262,7 +1263,9 @@ class SlopeBackground extends Component {
         const still = sig > 0.01 &&
           shifted.x0 < formRect.x1 && shifted.x0 + shifted.w > formRect.x0 &&
           shifted.y0 < formRect.y1 && shifted.y0 + shifted.h > formRect.y0;
-        const alpha = this._skyVis * (rec.depth ?? 1) * (1 - (still ? 0.55 : 0.12) * sig);
+        // mobile dims harder: short viewports can't part far enough, so figures
+        // (and their labels) still under the invite step back instead of colliding
+        const alpha = this._skyVis * (rec.depth ?? 1) * (1 - (still ? (this.mob ? 0.82 : 0.55) : 0.12) * sig);
         // label only when the caps text fits its figure's footprint —
         // long names on small figures spill into neighbors and read as mess.
         // mobile: projects always keep their names (they anchor the beat);
@@ -2323,20 +2326,21 @@ class SlopeBackground extends Component {
           .sig-input::placeholder { color: rgba(201,214,226,0.28); }
           .sig-input:disabled { opacity: 0.45; }
         `}</style>
-        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '28px 36px', fontFamily: mono, fontSize: 14, letterSpacing: '0.16em' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-              <span style={{ width: 9, height: 9, background: 'currentColor', display: 'inline-block' }} />
+        {/* mobile: tighter type/gaps so all three links fit a 390px row without clipping */}
+        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: mob ? 'center' : 'flex-end', padding: mob ? '16px 12px' : '28px 36px', fontFamily: mono, fontSize: mob ? 11 : 14, letterSpacing: mob ? '0.12em' : '0.16em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 12 : 22 }}>
+            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
+              <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block' }} />
               WORK
             </a>
-            <span className="nav-sep" style={{ width: 1, height: 14 }} />
-            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-              <span style={{ width: 9, height: 9, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
+            <span className="nav-sep" style={{ width: 1, height: mob ? 11 : 14 }} />
+            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
+              <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
               PROJECTS
             </a>
-            <span className="nav-sep" style={{ width: 1, height: 14 }} />
-            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-              <span style={{ width: 9, height: 9, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
+            <span className="nav-sep" style={{ width: 1, height: mob ? 11 : 14 }} />
+            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
+              <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
               CONTACT
             </a>
           </div>
