@@ -1,0 +1,27 @@
+# Search & social crawlers: welcome (this is a public portfolio)
+User-agent: *
+Allow: /
+
+# AI training crawlers: not welcome (no SEO impact — these don't affect ranking)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+Sitemap: https://isaacau.com/sitemap.xml

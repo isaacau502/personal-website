@@ -15,6 +15,38 @@ export const SKY_PALETTE = {
   amber: '255,214,160',  // dusk amber — the newest star (matches the sun gradient)
 };
 
+// Pre-rendered glow sprites — creating a radial gradient per star per frame
+// is the sky's hottest path once the shared sky fills up (the cost grows with
+// every visitor signature). One cached sprite per glow color, drawn scaled
+// under globalAlpha, replaces gradient-create+fill per star. Falls back to
+// live gradients where no canvas factory exists (node tests).
+const GLOW_R = 64;
+const glowSprites = new Map();
+// soft=true is the atmosphere halo (mid-stop falloff); soft=false is the
+// plain two-stop glow renderGraph's nodes use.
+export function glowSprite(color, soft = true) {
+  const key = color + (soft ? '|s' : '|p');
+  if (glowSprites.has(key)) return glowSprites.get(key);
+  let cv = null;
+  if (typeof OffscreenCanvas !== 'undefined') {
+    cv = new OffscreenCanvas(GLOW_R * 2, GLOW_R * 2);
+  } else if (typeof document !== 'undefined') {
+    cv = document.createElement('canvas');
+    cv.width = cv.height = GLOW_R * 2;
+  }
+  if (cv) {
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(GLOW_R, GLOW_R, 0, GLOW_R, GLOW_R, GLOW_R);
+    g.addColorStop(0, `rgba(${color},1)`);
+    if (soft) g.addColorStop(0.32, `rgba(${color},0.45)`);
+    g.addColorStop(1, `rgba(${color},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, GLOW_R * 2, GLOW_R * 2);
+  }
+  glowSprites.set(key, cv);
+  return cv;
+}
+
 // stars: [{id, x, y, size}] unit coords · edges: [[idA, idB]]
 // panel: {x0, y0, w, h} sky-space rect the unit grid maps into
 // opts: t (seconds, twinkle) · alpha (0..1) · grow (0..1 draw-on reveal)
@@ -82,14 +114,21 @@ export function drawConstellation(ctx, stars, edges, panel, opts = {}) {
     // reads as an atmosphere around the star, breathing with the twinkle
     const glowR = rad * (newest ? 5.6 : 4.8) * (0.85 + 0.15 * twA);
     const glowA = (newest ? 0.30 : 0.20) * alpha * cr * (0.65 + 0.35 * twA);
-    const gl = ctx.createRadialGradient(x, y, 0, x, y, glowR);
-    gl.addColorStop(0, `rgba(${glowCol},${glowA.toFixed(3)})`);
-    gl.addColorStop(0.32, `rgba(${glowCol},${(glowA * 0.45).toFixed(3)})`);
-    gl.addColorStop(1, `rgba(${glowCol},0)`);
-    ctx.fillStyle = gl;
-    ctx.beginPath();
-    ctx.arc(x, y, glowR, 0, 7);
-    ctx.fill();
+    const spr = glowSprite(glowCol);
+    if (spr) {
+      ctx.globalAlpha = glowA;
+      ctx.drawImage(spr, x - glowR, y - glowR, glowR * 2, glowR * 2);
+      ctx.globalAlpha = 1;
+    } else {
+      const gl = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+      gl.addColorStop(0, `rgba(${glowCol},${glowA.toFixed(3)})`);
+      gl.addColorStop(0.32, `rgba(${glowCol},${(glowA * 0.45).toFixed(3)})`);
+      gl.addColorStop(1, `rgba(${glowCol},0)`);
+      ctx.fillStyle = gl;
+      ctx.beginPath();
+      ctx.arc(x, y, glowR, 0, 7);
+      ctx.fill();
+    }
     ctx.fillStyle = newest
       ? `rgba(${palette.amber},${(0.95 * alpha * cr).toFixed(3)})`
       : `rgba(${palette.star},${(alpha * (0.55 + 0.3 * s.size) * cr * twA).toFixed(3)})`;

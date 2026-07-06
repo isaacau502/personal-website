@@ -1,5 +1,5 @@
 import { Component, createRef } from 'react';
-import { drawConstellation } from './constellation/draw.js';
+import { drawConstellation, glowSprite } from './constellation/draw.js';
 import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
 import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separatePanels, skyLean } from './constellation/sky.js';
 
@@ -158,7 +158,9 @@ function diLean(u) {
 // drifting left while pulling away downhill (diRiderZ) so he exits into the distance
 const diBaseX = (u) => -DI_SWEEP / 2 + 4 * (DI_SWEEP / 2 + 1.2) * u * (1 - u);
 const diRiderX = (u) => diBaseX(u) + diWiggle(u);
-const diRiderZ = (u) => 20 * Math.pow(smooth(0.62, 1.0, u), 1.5);
+// gentle power ramp (no smoothstep): the pull-away builds gradually, so the
+// fast stretch lands when he's already distant instead of bursting mid-frame
+const diRiderZ = (u) => 20 * Math.pow(Math.min(1, Math.max(0, (u - 0.62) / 0.38)), 1.4);
 function diAir(u) {
   const p = (u - DI_AIR0) / (DI_AIR1 - DI_AIR0);
   return (p > 0 && p < 1) ? DI_AIRMAX * 4 * p * (1 - p) : 0;
@@ -802,10 +804,9 @@ class SlopeBackground extends Component {
       if (this._navPale !== pale) {
         this._navPale = pale;
         const nav = this.navRef.current;
-        nav.style.setProperty('--nav-ink', pale ? '#c9d6e2' : '#4a5c72');
-        nav.style.setProperty('--nav-dim', pale ? '#94aac6' : '#33455c');
-        nav.style.setProperty('--nav-line', pale ? 'rgba(201,214,226,0.45)' : '#28569e');
-        nav.style.setProperty('--nav-hover', pale ? '#f4f8fd' : '#17222f');
+        nav.style.setProperty('--nav-ink', pale ? '#f4f8fd' : '#17222f');
+        nav.style.setProperty('--nav-line', pale ? 'rgba(201,214,226,0.45)' : '#4a5c72');
+        nav.style.setProperty('--nav-hover', pale ? '#c9d6e2' : '#4a5c72');
       }
     }
 
@@ -1357,10 +1358,17 @@ class SlopeBackground extends Component {
         const gr = n.winner ? rad * 3.2 : rad * 2.6;
         const gcol = n.winner ? pal.winGlow : pal.nodeGlow;
         const ga = (n.winner ? 0.3 : 0.16) * A * cr;
-        const gl = gctx.createRadialGradient(x, y, 0, x, y, gr);
-        gl.addColorStop(0, `rgba(${gcol},${ga.toFixed(3)})`);
-        gl.addColorStop(1, `rgba(${gcol},0)`);
-        gctx.fillStyle = gl; gctx.beginPath(); gctx.arc(x, y, gr, 0, 7); gctx.fill();
+        const spr = glowSprite(gcol, false);
+        if (spr) {
+          gctx.globalAlpha = ga;
+          gctx.drawImage(spr, x - gr, y - gr, gr * 2, gr * 2);
+          gctx.globalAlpha = 1;
+        } else {
+          const gl = gctx.createRadialGradient(x, y, 0, x, y, gr);
+          gl.addColorStop(0, `rgba(${gcol},${ga.toFixed(3)})`);
+          gl.addColorStop(1, `rgba(${gcol},0)`);
+          gctx.fillStyle = gl; gctx.beginPath(); gctx.arc(x, y, gr, 0, 7); gctx.fill();
+        }
       }
       gctx.fillStyle = n.winner ? `${pal.nodeWin}${(A * cr).toFixed(3)})` : pal.node(A * (0.55 + 0.4 * n.r) * cr);
       gctx.beginPath(); gctx.arc(x, y, rad, 0, 7); gctx.fill();
@@ -1800,22 +1808,6 @@ class SlopeBackground extends Component {
       gctx.fillStyle = `rgba(${OV_SLATE},${a.toFixed(3)})`; gctx.fill();
     }
 
-    // board trail — two carve lines, gap while airborne
-    gctx.strokeStyle = `rgba(${OV_SLATE},${(0.32 * A).toFixed(3)})`;
-    gctx.lineWidth = 1.2;
-    for (const off of [-0.11, 0.11]) {
-      gctx.beginPath();
-      let pen = false;
-      for (let tp = Math.max(0, u - 0.30); tp <= u; tp += 0.0035) {
-        if (diAir(tp) > 0.02) { pen = false; continue; }
-        const s = proj([diRiderX(tp) + off, 0.015, diRiderZ(tp) - (dist - DI_SPEED * tp)]);
-        if (!s) { pen = false; continue; }
-        if (pen) gctx.lineTo(s[0], s[1]); else gctx.moveTo(s[0], s[1]);
-        pen = true;
-      }
-      gctx.stroke();
-    }
-
     // rider mesh, forming while entering (stars settle into place)
     const rig = diBuildRider(u);
     const xf = diTransform(u);
@@ -1833,6 +1825,23 @@ class SlopeBackground extends Component {
     const far = Math.max(0, Math.min(1, 1.5 - bodyS[2] / 16));
     if (far <= 0.01) return;
     const shrink = Math.min(1.2, 6.5 / bodyS[2]);
+
+    // board trail — two carve lines, gap while airborne; shares the rider's
+    // depth fade so his track dissolves with him instead of outliving him
+    gctx.strokeStyle = `rgba(${OV_SLATE},${(0.32 * A * far).toFixed(3)})`;
+    gctx.lineWidth = 1.2;
+    for (const off of [-0.11, 0.11]) {
+      gctx.beginPath();
+      let pen = false;
+      for (let tp = Math.max(0, u - 0.30); tp <= u; tp += 0.0035) {
+        if (diAir(tp) > 0.02) { pen = false; continue; }
+        const s = proj([diRiderX(tp) + off, 0.015, diRiderZ(tp) - (dist - DI_SPEED * tp)]);
+        if (!s) { pen = false; continue; }
+        if (pen) gctx.lineTo(s[0], s[1]); else gctx.moveTo(s[0], s[1]);
+        pen = true;
+      }
+      gctx.stroke();
+    }
 
     // plexus motes floating around the body
     for (let k = 0; k < 14; k++) {
@@ -2087,7 +2096,7 @@ class SlopeBackground extends Component {
           </section>
 
           {/* 260vh + sticky copy: the extra scroll scrubs the full ollie run */}
-          <section data-screen-label="DropIn" style={{ height: '260vh', position: 'relative' }}>
+          <section data-screen-label="DropIn" style={{ height: '340vh', position: 'relative' }}>
             <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
             <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'right', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>04 / CAPTURE EVERYTHING</div>
@@ -2158,14 +2167,14 @@ class SlopeBackground extends Component {
         </div>
 
         <style>{`
-          .nav-link { position: relative; color: var(--nav-ink, #4a5c72); transition: color 0.45s ease; }
+          .nav-link { position: relative; color: var(--nav-ink, #17222f); transition: color 0.45s ease; }
           .nav-link::after {
             content: ''; position: absolute; left: 0; bottom: -4px; height: 1px; width: 0;
-            background: var(--nav-line, #28569e); transition: width 0.22s ease;
+            background: var(--nav-line, #4a5c72); transition: width 0.22s ease;
           }
-          .nav-link:hover { color: var(--nav-hover, #17222f); }
+          .nav-link:hover { color: var(--nav-hover, #4a5c72); }
           .nav-link:hover::after { width: 100%; }
-          .nav-sep { background: var(--nav-line, #28569e); transition: background 0.45s ease; }
+          .nav-sep { background: var(--nav-line, #4a5c72); transition: background 0.45s ease; }
           .sig-input {
             width: 100%; background: transparent; border: none;
             border-bottom: 1px solid rgba(201,214,226,0.35);
@@ -2178,21 +2187,20 @@ class SlopeBackground extends Component {
           .sig-input::placeholder { color: rgba(201,214,226,0.28); }
           .sig-input:disabled { opacity: 0.45; }
         `}</style>
-        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', fontFamily: mono, fontSize: 12, letterSpacing: '0.18em' }}>
-          <span style={{ color: 'var(--nav-dim, #33455c)', transition: 'color 0.45s ease' }}>IA</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
-              <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block' }} />
+        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '28px 36px', fontFamily: mono, fontSize: 14, letterSpacing: '0.16em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+              <span style={{ width: 9, height: 9, background: 'currentColor', display: 'inline-block' }} />
               WORK
             </a>
-            <span className="nav-sep" style={{ width: 1, height: 12 }} />
-            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
-              <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
+            <span className="nav-sep" style={{ width: 1, height: 14 }} />
+            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+              <span style={{ width: 9, height: 9, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
               PROJECTS
             </a>
-            <span className="nav-sep" style={{ width: 1, height: 12 }} />
-            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, textDecoration: 'none' }}>
-              <span style={{ width: 8, height: 8, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
+            <span className="nav-sep" style={{ width: 1, height: 14 }} />
+            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+              <span style={{ width: 9, height: 9, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
               CONTACT
             </a>
           </div>
