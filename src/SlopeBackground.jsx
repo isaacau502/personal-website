@@ -859,7 +859,22 @@ class SlopeBackground extends Component {
 
   // Rebuild the sky from API records: project seeds + one placed panel per
   // visitor figure, density-adaptive exactly like the ?skyfill mock path.
+  // Records this visitor signed are merged from localStorage until the
+  // server list includes them — the edge caches /api/sky ~5 min and KV
+  // lists are eventually consistent, and "my constellation vanished on
+  // refresh" is the one staleness that must never happen.
   applySkyFromApi = (records) => {
+    try {
+      const own = JSON.parse(localStorage.getItem('sky-own') || '[]');
+      if (own.length) {
+        const have = new Set(records.map((r) => r.id));
+        const pending = own.filter((r) => r.id && !have.has(r.id) && Date.now() - (r.savedAt || 0) < 86400e3);
+        if (pending.length !== own.length) {
+          localStorage.setItem('sky-own', JSON.stringify(pending));
+        }
+        records = records.concat(pending);
+      }
+    } catch { /* no storage (private mode) — server list only */ }
     const aScale = adaptiveScale(PROJECT_CONSTELLATIONS.length + records.length);
     const projMult = Math.max(1, Math.min(1.45, aScale / 0.09));
     const recs = PROJECT_CONSTELLATIONS.map((fig, i) => ({
@@ -952,6 +967,15 @@ class SlopeBackground extends Component {
     this._pending = false;
     this.setSigStatus(null);
     if (this.sigInputRef.current) this.sigInputRef.current.disabled = false;
+    // persisted records (id = API path; procedural fallbacks have none)
+    // survive refresh via localStorage until the server list catches up
+    if (record.id) {
+      try {
+        const own = JSON.parse(localStorage.getItem('sky-own') || '[]');
+        own.push({ id: record.id, name: record.name, stars: record.stars, edges: record.edges, savedAt: Date.now() });
+        localStorage.setItem('sky-own', JSON.stringify(own.slice(-20)));
+      } catch { /* no storage — the reveal still plays, it just won't outlive the tab */ }
+    }
     const h = [...record.name].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) >>> 0), 7) || 1;
     let s = h;
     const r = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
