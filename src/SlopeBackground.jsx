@@ -5,6 +5,27 @@ import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separa
 
 const mono = 'ui-monospace, monospace';
 
+// ---- mobile beat choreography ----
+// under MB_BP the copy/motif pairs can't sit side by side, so each beat serializes.
+// to keep the motif from reading as "patched on", the beat's TITLE persists: as the
+// body copy lifts out [MB_OUT0..MB_OUT1], the project name rises into a pinned header
+// [MB_HDR0..MB_HDR1] and the motif forms beneath it. the windows OVERLAP (motif starts
+// at MB_MOTIF0, before the copy is fully gone) so the frame is never empty and the
+// diagram materializes as a labeled panel, not an orphan.
+const MB_BP = 768;
+const MB_OUT0 = 0.38, MB_OUT1 = 0.56;
+const MB_HDR0 = 0.44, MB_HDR1 = 0.60;
+const MB_MOTIF0 = 0.50;
+// sig-form anchor on mobile — high enough that the iOS keyboard never covers the input
+const MB_SIG_Y = 0.42;
+// name/sub anchor the diagram; kick echoes the section's mono lead-in
+const MB_TITLE = {
+  tdk: { kick: '01 · MAY 2026 – PRESENT · INTERNSHIP', name: 'TDK', sub: 'ML Intern' },
+  ovis: { kick: '02 · 2022 – 2026 · CO-FOUNDER', name: 'Ovis', sub: 'Medical Solutions' },
+  llm: { kick: '03 · RESEARCH', name: 'LLM', sub: 'Research' },
+  drop: { kick: '04 · 2026 · PERSONAL PROJECT', name: 'DropIn', sub: 'Motion Capture' },
+};
+
 // night-sky star chart: formation window per figure in _skyGrow space
 // (staggered, career order — matches PROJECT_CONSTELLATIONS). Placement is
 // sky-space ({x,y,scale} on each record, mapped per-frame by skyToScreen);
@@ -283,12 +304,15 @@ function diTransform(u) {
 
 // fixed camera slightly left of viewport center (copy sits right); rider crosses the frame
 function diMakeCam(u, W, H) {
+  // mobile: the rider has the frame to himself, so center him and key the focal length
+  // off width — portrait H would otherwise blow the figure past the edges
+  const mob = W < MB_BP;
   const pos = [0, 1.85, -5.7];
   const tgt = [diRiderX(u) * 0.12, 0.85, 1.8];
   const fwd = diNorm(diSub(tgt, pos));
   const rgt = diNorm(diCross([0, 1, 0], fwd));
   const up = diCross(fwd, rgt);
-  const f = H * 2.0, cx = W * 0.38, cy = H * 0.52;
+  const f = mob ? W * 2.2 : H * 2.0, cx = W * (mob ? 0.5 : 0.38), cy = H * (mob ? 0.5 : 0.52);
   return (p) => {
     const q = diSub(p, pos);
     const z = diDot(q, fwd);
@@ -324,6 +348,14 @@ class SlopeBackground extends Component {
     this.llmSubRef = createRef();
     this.dropRef = createRef();
     this.dropSubRef = createRef();
+    this.hudRef = createRef();
+    this.hdrRef = createRef();
+    this.hdrKickRef = createRef();
+    this.hdrNameRef = createRef();
+    // mob mirrors state.mob for per-frame reads (no re-render on the hot path);
+    // state.mob drives the JSX that must re-render on a breakpoint flip
+    this.state = { mob: typeof window !== 'undefined' && window.innerWidth < MB_BP };
+    this.mob = this.state.mob;
     this.dist = 0;
     this.p = 0; // smoothed scroll progress 0..1
     this.pRaw = 0;
@@ -338,11 +370,17 @@ class SlopeBackground extends Component {
     this.resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.W = window.innerWidth; this.H = window.innerHeight;
+      this.mob = this.W < MB_BP;
+      if (this.mob !== this.state.mob) this.setState({ mob: this.mob });
+      // CSS size must track innerHeight — 100vh overshoots the visible viewport on
+      // mobile Safari, which would stretch the drawing while the toolbar is up
       c.width = this.W * dpr; c.height = this.H * dpr;
+      c.style.width = this.W + 'px'; c.style.height = this.H + 'px';
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const gc = this.graphCanvasRef.current;
       if (gc) {
         gc.width = this.W * dpr; gc.height = this.H * dpr;
+        gc.style.width = this.W + 'px'; gc.style.height = this.H + 'px';
         this.gctx = gc.getContext('2d');
         this.gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
@@ -459,6 +497,8 @@ class SlopeBackground extends Component {
     this.airEl = document.querySelector('[data-screen-label="Airborne"]');
     this.landEl = document.querySelector('[data-screen-label="The landing"]');
     this.sections = Array.from(document.querySelectorAll('[data-reveal]'));
+    // mobile: maps each data-beat copy block to the scroll element that scrubs it
+    this.beatEls = { tdk: this.approachEl, ovis: this.lipEl, llm: this.llmEl, drop: this.dropEl };
     window.addEventListener('resize', this.resize);
     this.resize();
     this.raf = requestAnimationFrame(this.loop);
@@ -479,9 +519,18 @@ class SlopeBackground extends Component {
     }
   }
 
+  componentDidUpdate() {
+    this.syncHeadlineWidth(); // breakpoint flips change font sizes under the width-matched headlines
+  }
+
   componentWillUnmount() {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
+  }
+
+  // mobile: the motif only gets the scrub after the copy has left the frame
+  mGrow(grow) {
+    return this.mob ? Math.max(0, Math.min(1, (grow - MB_MOTIF0) / (1 - MB_MOTIF0))) : grow;
   }
 
   makeRidges() {
@@ -773,9 +822,40 @@ class SlopeBackground extends Component {
     for (const el of this.sections) {
       const r = el.getBoundingClientRect();
       const dd = (r.top + r.height / 2 - H / 2) / H;
-      const op = Math.max(0, Math.min(1, 1 - Math.abs(dd) * 1.7));
+      let op = Math.max(0, Math.min(1, 1 - Math.abs(dd) * 1.7));
+      let ty = dd * 60;
+      // mobile beats hand the frame from copy to motif: lift the copy out mid-scrub
+      if (this.mob && el.dataset.beat) {
+        const out = smooth(MB_OUT0, MB_OUT1, this.scrubTall(this.beatEls[el.dataset.beat]).grow);
+        op *= 1 - out;
+        ty -= out * 50;
+      }
       el.style.opacity = op.toFixed(3);
-      el.style.transform = `translateY(${(dd * 60).toFixed(1)}px)`;
+      el.style.transform = `translateY(${ty.toFixed(1)}px)`;
+    }
+
+    // ---- PERSISTENT BEAT TITLE (mobile) ----
+    // the project name the copy just showed rises into a pinned header and owns the
+    // motif forming below it, so the diagram never reads as detached
+    if (this.hdrRef.current) {
+      let best = 0, key = '';
+      if (this.mob && this.beatEls) {
+        for (const k in this.beatEls) {
+          const s = this.scrubTall(this.beatEls[k]);
+          const a = smooth(MB_HDR0, MB_HDR1, s.grow) * s.vis;
+          if (a > best) { best = a; key = k; }
+        }
+      }
+      const hdr = this.hdrRef.current;
+      hdr.style.opacity = best.toFixed(3);
+      // slight settle: title drifts up into place as it fades in
+      hdr.style.transform = `translateY(${((1 - best) * 12).toFixed(1)}px)`;
+      if (key && this._hdrKey !== key) {
+        this._hdrKey = key;
+        const tt = MB_TITLE[key];
+        this.hdrKickRef.current.textContent = tt.kick;
+        this.hdrNameRef.current.textContent = tt.sub ? `${tt.name} · ${tt.sub}` : tt.name;
+      }
     }
 
     // ---- SIGNATURE FORM (DOM overlay, not canvas) ----
@@ -823,6 +903,11 @@ class SlopeBackground extends Component {
       this.distRef.current.textContent = label;
       const lzClose = descent > 0.015 && 240 * (1 - descent) < 30;
       this.distRef.current.style.color = (lzClose || (stop <= 0.3 && lift <= 0.5 && lipM < 80)) ? '#b8452e' : '';
+    }
+    // mobile: the run's over at the whiteout, so retire the telemetry HUD before it
+    // collides with the contact footer (it stays pinned on desktop)
+    if (this.hudRef.current) {
+      this.hudRef.current.style.opacity = this.mob ? (1 - fullWhite).toFixed(3) : '1';
     }
 
     // ---- PROJECT GRAPHS : TDK lineage tree (right of "The approach") + sky constellation (airborne) ----
@@ -1100,11 +1185,16 @@ class SlopeBackground extends Component {
     const W = this.W, H = this.H;
     gctx.clearRect(0, 0, W, H);
 
-    // TDK lineage tree — dark-on-snow, right of "The approach"
+    // TDK lineage tree — dark-on-snow, right of "The approach" (mobile: full-frame after the copy)
     if (this.approachEl && this.graphA) {
-      const { grow, vis } = this.scrubTall(this.approachEl);
+      const s = this.scrubTall(this.approachEl);
+      const grow = this.mGrow(s.grow), vis = s.vis;
       if (vis > 0.002 && grow > 0.002) {
-        this.renderGraph(this.graphA, { grow, vis, t, dark: true, panel: { x0: W * 0.54, x1: W * 0.93, y0: H * 0.18, y1: H * 0.82 } });
+        // mobile top stays under the horizon band so the tree sits on snow while the lip rises
+        const panel = this.mob
+          ? { x0: W * 0.10, x1: W * 0.90, y0: H * 0.30, y1: H * 0.88 }
+          : { x0: W * 0.54, x1: W * 0.93, y0: H * 0.18, y1: H * 0.82 };
+        this.renderGraph(this.graphA, { grow, vis, t, dark: true, panel });
       }
     }
 
@@ -1143,13 +1233,18 @@ class SlopeBackground extends Component {
       }
       this._formExpand = formExpand;
       // the invite's reserved zone (screen space) — the sky parts around it;
-      // while a signature forms it grows to hold the center-stage figure
+      // while a signature forms it grows to hold the center-stage figure.
+      // mobile: anchored at the raised form (MB_SIG_Y) and capped to the viewport —
+      // the desktop 330px half-width would evacuate the whole portrait sky
       const cs = Math.max(m.s * 0.16, Math.min(W, H) * 0.52); // center-stage size — the reveal owns the sky
-      const hx = 330 + (Math.max(330, cs * 0.7) - 330) * formExpand;
+      const fy = H * (this.mob ? MB_SIG_Y : 0.5);
+      const hx0 = this.mob ? Math.min(330, W * 0.44) : 330;
+      const hy = this.mob ? Math.min(150, H * 0.18) : 150;
+      const hx = hx0 + (Math.max(hx0, cs * 0.7) - hx0) * formExpand;
       const formRect = {
         x0: W / 2 - hx, x1: W / 2 + hx,
-        y0: H / 2 - 150 - (cs - 20) * formExpand,
-        y1: H / 2 + 150,
+        y0: fy - hy - (cs - 20) * formExpand,
+        y1: fy + hy,
       };
       // two passes: compute parted panels, cap pairwise overlap, then draw
       const visible = [];
@@ -1169,8 +1264,12 @@ class SlopeBackground extends Component {
           shifted.y0 < formRect.y1 && shifted.y0 + shifted.h > formRect.y0;
         const alpha = this._skyVis * (rec.depth ?? 1) * (1 - (still ? 0.55 : 0.12) * sig);
         // label only when the caps text fits its figure's footprint —
-        // long names on small figures spill into neighbors and read as mess
-        const labelFits = shifted.w > 64 && rec.fig.name.length * 7.4 < shifted.w * 1.3;
+        // long names on small figures spill into neighbors and read as mess.
+        // mobile: projects always keep their names (they anchor the beat);
+        // visitors get a relaxed spill allowance — portrait's vertical gaps absorb it
+        const labelFits = this.mob
+          ? (rec.project ? shifted.w > 40 : shifted.w > 52 && rec.fig.name.length * 7.4 < shifted.w * 1.8)
+          : shifted.w > 64 && rec.fig.name.length * 7.4 < shifted.w * 1.3;
         drawConstellation(gctx, rec.fig.stars, rec.fig.edges, shifted, {
           t: sec, grow, alpha,
           label: labelFits ? rec.fig.name : null,
@@ -1192,7 +1291,7 @@ class SlopeBackground extends Component {
         const tOff = partingOffset(target, formRect, sig);
         const tx = target.x0 + tOff.dx, ty = target.y0 + tOff.dy;
         const cx0 = W / 2 - cs / 2;
-        const cy0 = Math.max(H * 0.05, H / 2 - 140 - cs); // above the invite, clamped on-screen
+        const cy0 = Math.max(H * 0.05, fy - 140 - cs); // above the invite, clamped on-screen
         const panel = {
           x0: cx0 + (tx - cx0) * drift,
           y0: cy0 + (ty - cy0) * drift,
@@ -1224,7 +1323,7 @@ class SlopeBackground extends Component {
         if (g.born === null) g.born = t;
         const gAge = (t - g.born) / 1000;
         const cx0g = W / 2 - cs / 2;
-        const cy0g = Math.max(H * 0.05, H / 2 - 140 - cs);
+        const cy0g = Math.max(H * 0.05, fy - 140 - cs);
         const baseR = cs * 0.018;
         const star = (ux, uy, size, a, w, p) => {
           const x = cx0g + ux * cs, y = cy0g + uy * cs;
@@ -1395,7 +1494,7 @@ class SlopeBackground extends Component {
     // with a lead-in as the section arrives — scrolling back unforms it
     const dwell = Math.max(r.height - H, 1);
     const lead = H * 0.45;
-    const grow = Math.max(0, Math.min(1, (lead - r.top) / (dwell + lead)));
+    const grow = this.mGrow(Math.max(0, Math.min(1, (lead - r.top) / (dwell + lead))));
     const enter = Math.max(0, Math.min(1, (H * 0.85 - r.top) / (H * 0.35)));
     const exit = Math.max(0, Math.min(1, (r.top + r.height - H * 0.15) / (H * 0.35)));
     const vis = Math.min(enter, exit);
@@ -1418,7 +1517,11 @@ class SlopeBackground extends Component {
     }
     const et = eng.elapsed;
 
-    const cx = W * 0.27, cy = H * 0.50, fh = H * 0.68;
+    // mobile: centered full-frame, seated low enough that the dial ring stays on the
+    // snow while the lip climbs the horizon behind it; fh capped by width for the ring
+    const mob = this.mob;
+    const cx = mob ? W * 0.5 : W * 0.27, cy = mob ? H * 0.58 : H * 0.50;
+    const fh = mob ? Math.min(H * 0.40, W * 0.60) : H * 0.68;
     const breathe = (id) => {
       const b = Math.sin(et * 1.4) * 0.004;
       if (id === 'chest' || id === 'heart') return -b * 1.6;
@@ -1613,7 +1716,10 @@ class SlopeBackground extends Component {
       if (a <= 0.01) continue;
       const [sx, sy] = XY(OV_IDX[rd.site]);
       gctx.fillStyle = `rgba(${rd.high ? OV_ALERT : rd.color},${(0.95 * a).toFixed(3)})`;
-      gctx.fillText(rd.text, sx + 18, sy - 9);
+      // mobile: keep the readout inside the narrow viewport
+      let tx = sx + 18;
+      if (mob) tx = Math.max(4, Math.min(tx, W - 8 - gctx.measureText(rd.text).width));
+      gctx.fillText(rd.text, tx, sy - 9);
       if (rd.high && age < 1.1) {
         gctx.strokeStyle = `rgba(${OV_ALERT},${(0.55 * (1 - age / 1.1) * A).toFixed(3)})`;
         gctx.lineWidth = 1.5;
@@ -1626,11 +1732,15 @@ class SlopeBackground extends Component {
     const gctx = this.gctx;
     if (!gctx || !this.llmEl) return;
     const W = this.W, H = this.H;
-    const { grow, vis } = this.scrubTall(this.llmEl);
+    const mob = this.mob;
+    const s = this.scrubTall(this.llmEl);
+    const grow = this.mGrow(s.grow), vis = s.vis;
     if (vis <= 0.002 || grow <= 0.002) return;
     const A = vis;
 
-    const gx = W * 0.52, gy = H * 0.16, gw = W * 0.42, gh = H * 0.66;
+    // mobile: near-full-width, seated low so the wireframe reads under the pinned title
+    const gx = W * (mob ? 0.06 : 0.52), gy = H * (mob ? 0.30 : 0.16);
+    const gw = W * (mob ? 0.88 : 0.42), gh = H * (mob ? 0.52 : 0.66);
     const fr = smooth(0, 0.06, grow);
     gctx.strokeStyle = `rgba(${OV_EDGE},${(0.22 * fr * A).toFixed(3)})`;
     gctx.lineWidth = 1;
@@ -1773,13 +1883,16 @@ class SlopeBackground extends Component {
     const frac = repairedSum / N;
     const ha = smooth(0.10, 0.2, grow);
     if (ha > 0.01) {
+      // mobile: headline hugs the wireframe (clear of the ridge line) and the stat
+      // line moves below the box instead of running off the right edge
+      const hy = gy - (mob ? 16 : Math.max(14, H * 0.045));
       gctx.font = `600 ${Math.max(12, W * 0.010)}px ui-monospace, Menlo, monospace`;
       gctx.fillStyle = `rgba(${OV_INKB},${(0.9 * ha * A).toFixed(3)})`;
-      gctx.fillText(`CLIP FIDELITY +${Math.round(29 * frac)}%`, gx, gy - Math.max(14, H * 0.045));
+      gctx.fillText(`CLIP FIDELITY +${Math.round(29 * frac)}%`, gx, hy);
       if (frac > 0.98) {
         gctx.font = `${Math.max(9, W * 0.0072)}px ui-monospace, Menlo, monospace`;
         gctx.fillStyle = `rgba(${OV_EDGE},${(0.8 * A).toFixed(3)})`;
-        gctx.fillText('p < 0.01 · 128 PAIRED TESTS · ZERO-SHOT', gx + W * 0.165, gy - Math.max(14, H * 0.045));
+        gctx.fillText('p < 0.01 · 128 PAIRED TESTS · ZERO-SHOT', mob ? gx : gx + W * 0.165, mob ? gy + gh + 20 : hy);
       }
     }
   }
@@ -1791,7 +1904,10 @@ class SlopeBackground extends Component {
     const { grow, vis } = this.scrubTall(this.dropEl);
     if (vis <= 0.002 || grow <= 0.002) return;
     const A = vis;
-    const u = smooth(DI_DELAY, 1, grow); // text reads alone for the first stretch, then the rider forms
+    // text reads alone for the first stretch, then the rider forms; on mobile that
+    // handoff is the shared MB_MOTIF0 point and nothing (flecks, trail) draws before it
+    const u = smooth(this.mob ? MB_MOTIF0 + 0.02 : DI_DELAY, 1, grow);
+    if (this.mob && u <= 0.001) return;
     const proj = diMakeCam(u, W, H);
     const dist = DI_SPEED * u;
 
@@ -1913,7 +2029,7 @@ class SlopeBackground extends Component {
       const edgeDeg = Math.round(Math.abs(diLean(u)) * 57.3);
       const airS = (u > DI_AIR0 && u < DI_AIR1) ? ((u - DI_AIR0) * DI_RUN_S).toFixed(2)
                  : (u >= DI_AIR1 ? ((DI_AIR1 - DI_AIR0) * DI_RUN_S).toFixed(2) : '0.00');
-      gctx.fillText(`IMU 100HZ · EDGE ${String(edgeDeg).padStart(2, ' ')}° · AIR ${airS}s`, W * 0.06, H * 0.14);
+      gctx.fillText(`IMU 100HZ · EDGE ${String(edgeDeg).padStart(2, ' ')}° · AIR ${airS}s`, W * 0.06, H * (this.mob ? 0.24 : 0.14));
     }
   }
 
@@ -2024,6 +2140,7 @@ class SlopeBackground extends Component {
   }
 
   render() {
+    const mob = this.state.mob;
     return (
       <>
         <canvas
@@ -2037,10 +2154,10 @@ class SlopeBackground extends Component {
 
         <div style={{ position: 'relative', zIndex: 1, color: '#17222f', fontFamily: "'Archivo Black', sans-serif" }}>
 
-          <section data-screen-label="Drop in" style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+          <section data-screen-label="Drop in" style={{ height: '100vh', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, textAlign: 'center', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 13, letterSpacing: '0.35em', color: '#4a5c72' }}>SOFTWARE · AI / ML ENGINEER</div>
-              <h1 style={{ margin: 0, fontSize: 'clamp(64px, 13vw, 200px)', lineHeight: 0.9, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>Isaac Au</h1>
+              <h1 style={{ margin: 0, fontSize: 'clamp(44px, 13vw, 200px)', lineHeight: 0.9, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>Isaac Au</h1>
               <div style={{ fontFamily: mono, fontSize: 14, letterSpacing: '0.2em', color: '#4a5c72' }}>CARNEGIE MELLON UNIVERSITY · PITTSBURGH, PA</div>
             </div>
             <div style={{ position: 'absolute', bottom: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -2049,10 +2166,10 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          {/* 220vh + sticky copy: the extra scroll scrubs the lineage-tree formation */}
-          <section id="work" data-screen-label="The approach" style={{ height: '220vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
-            <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
+          {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the lineage-tree formation */}
+          <section id="work" data-screen-label="The approach" style={{ height: mob ? '300vh' : '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: mob ? '0 7vw' : '0 8vw' }}>
+            <div data-reveal="1" data-beat="tdk" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>01 · MAY 2026 – PRESENT · INTERNSHIP</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
                 <span ref={this.tdkRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>TDK</span>
@@ -2063,12 +2180,12 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          {/* 220vh + sticky copy: the extra 120vh of scroll scrubs the Ovis constellation formation */}
-          <section id="projects" data-screen-label="The lip" style={{ height: '220vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
-              <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'right', willChange: 'transform, opacity' }}>
+          {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the Ovis constellation formation */}
+          <section id="projects" data-screen-label="The lip" style={{ height: mob ? '300vh' : '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: mob ? '0 7vw' : '0 8vw' }}>
+              <div data-reveal="1" data-beat="ovis" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
                 <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>02 · 2022 – 2026 · CO-FOUNDER</div>
-                <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: mob ? 'flex-start' : 'flex-end' }}>
                   <span ref={this.ovisRef} style={{ fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>OVIS</span>
                   <span ref={this.medRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Medical Solutions</span>
                 </h2>
@@ -2081,10 +2198,10 @@ class SlopeBackground extends Component {
           {/* spacer — lets the Ovis constellation scroll off before LLM copy arrives */}
           <div style={{ height: '60vh' }} />
 
-          {/* 220vh + sticky copy: the extra scroll scrubs the grounded-repair sweep */}
-          <section data-screen-label="LLM research" style={{ height: '220vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '0 8vw' }}>
-            <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
+          {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the grounded-repair sweep */}
+          <section data-screen-label="LLM research" style={{ height: mob ? '300vh' : '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: mob ? '0 7vw' : '0 8vw' }}>
+            <div data-reveal="1" data-beat="llm" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>03 · RESEARCH</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
                 <span ref={this.llmRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>LLM</span>
@@ -2095,12 +2212,12 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          {/* 260vh + sticky copy: the extra scroll scrubs the full ollie run */}
+          {/* 340vh + sticky copy: the extra scroll scrubs the full ollie run */}
           <section data-screen-label="DropIn" style={{ height: '340vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8vw' }}>
-            <div data-reveal="1" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'right', willChange: 'transform, opacity' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: mob ? '0 7vw' : '0 8vw' }}>
+            <div data-reveal="1" data-beat="drop" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>04 · 2026 · PERSONAL PROJECT</div>
-              <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: mob ? 'flex-start' : 'flex-end' }}>
                 <span ref={this.dropRef} style={{ fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>DropIn</span>
                 <span ref={this.dropSubRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
               </h2>
@@ -2118,7 +2235,7 @@ class SlopeBackground extends Component {
 
           {/* 640vh: the extra 140vh over the original 500vh is the night-sky signature dwell */}
           <section data-screen-label="Airborne" style={{ height: '640vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '260vh' }}>
-            <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', willChange: 'transform, opacity' }}>
+            <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', padding: '0 6vw', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#dbe7f4' }}>— WHERE I LIKE TO WORK —</div>
               <h2 style={{ margin: 0, fontSize: 'clamp(28px, 4.2vw, 56px)', lineHeight: 1.05, textTransform: 'uppercase', color: '#f4f8fd' }}>Software that touches<br />the physical world</h2>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.2em', color: '#c3d5ea' }}>SENSORS · PATIENTS · RIDERS · 100HZ STREAMS · TIGHT BUDGETS</div>
@@ -2135,10 +2252,10 @@ class SlopeBackground extends Component {
           >
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#28569e' }}>OPEN TO FULL-TIME · NEW-GRAD 2027</div>
-              <h2 style={{ margin: 0, fontSize: 'clamp(56px, 10vw, 150px)', lineHeight: 0.9, textTransform: 'uppercase' }}>Let&rsquo;s talk</h2>
+              <h2 style={{ margin: 0, fontSize: 'clamp(40px, 12vw, 150px)', lineHeight: 0.9, textTransform: 'uppercase' }}>Let&rsquo;s talk</h2>
               <div style={{ width: 48, height: 1.5, background: '#c8d4e0' }} />
               <p style={{ margin: 0, maxWidth: 480, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Got a project, a question, or just want to say hey&mdash;I&rsquo;d love to hear from you.</p>
-              <div style={{ display: 'flex', gap: 48, marginTop: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: mob ? '20px 32px' : 48, marginTop: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center' }}>
                   <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.4em', color: '#4a5c72' }}>EMAIL</div>
                   <a href="mailto:ayhisaac@gmail.com" style={{ fontFamily: mono, fontSize: 14, color: '#17222f', textDecoration: 'none' }}>ayhisaac@gmail.com</a>
@@ -2152,7 +2269,7 @@ class SlopeBackground extends Component {
                   <a href="https://linkedin.com/in/isaacayh" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 14, color: '#17222f', textDecoration: 'none' }}>/in/isaacayh</a>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, marginTop: 10 }}>
                 <a href="mailto:ayhisaac@gmail.com" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', background: '#17222f', color: '#ffffff', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>EMAIL</a>
                 <a href="/resume.pdf" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', padding: '16px 28px', border: '2px solid #17222f', color: '#17222f', fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', textDecoration: 'none' }}>RESUME ↓</a>
               </div>
@@ -2172,7 +2289,7 @@ class SlopeBackground extends Component {
                 ))}
               </div>
             </div>
-            <div style={{ position: 'absolute', bottom: 22, display: 'flex', alignItems: 'center', gap: 10, fontFamily: mono, fontSize: 11, letterSpacing: '0.3em', color: '#8fa2b8' }}>
+            <div style={{ position: 'absolute', bottom: 22, left: 0, right: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '4px 10px', padding: '0 14px', fontFamily: mono, fontSize: 11, letterSpacing: '0.3em', color: '#8fa2b8' }}>
               <span>© ISAAC AU 2026</span>
               <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#c8d4e0', display: 'inline-block' }} />
               <span>BUILT WITH CLAUDE CODE & CLAUDE DESIGN</span>
@@ -2182,6 +2299,10 @@ class SlopeBackground extends Component {
         </div>
 
         <style>{`
+          /* small-viewport height for the hero so the scroll cue clears mobile browser chrome */
+          @supports (height: 100svh) {
+            section[data-screen-label="Drop in"] { height: 100svh !important; }
+          }
           .nav-link { position: relative; color: var(--nav-ink, #17222f); transition: color 0.45s ease; }
           .nav-link::after {
             content: ''; position: absolute; left: 0; bottom: -4px; height: 1px; width: 0;
@@ -2221,10 +2342,11 @@ class SlopeBackground extends Component {
           </div>
         </nav>
 
-        {/* signature form — opacity/pointer-events driven per-frame by the night factor */}
+        {/* signature form — opacity/pointer-events driven per-frame by the night factor.
+            mobile: anchored higher so the software keyboard never covers the input */}
         <div
           ref={this.sigRef}
-          style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, calc(-50% + 26px))', zIndex: 2, opacity: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, fontFamily: mono, width: 'min(560px, 86vw)' }}
+          style={{ position: 'fixed', left: '50%', top: this.state.mob ? MB_SIG_Y * 100 + '%' : '50%', transform: 'translate(-50%, calc(-50% + 26px))', zIndex: 2, opacity: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, fontFamily: mono, width: 'min(560px, 86vw)' }}
         >
           <div style={{ fontSize: 12, letterSpacing: '0.4em', color: '#c9d6e2', textAlign: 'center' }}>LEAVE A CONSTELLATION IN THE SKY</div>
           <input
@@ -2238,9 +2360,15 @@ class SlopeBackground extends Component {
           <div ref={this.sigStatusRef} style={{ fontSize: 11, letterSpacing: '0.1em', color: 'rgba(201,214,226,0.4)', transition: 'color 0.3s ease' }}>press enter · it stays here for everyone after you</div>
         </div>
 
-        <div style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
+        <div ref={this.hudRef} style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
           <span ref={this.spdRef}>SPD 00 KM/H</span>
           <span ref={this.distRef}>LIP 400 M</span>
+        </div>
+
+        {/* mobile: the beat's title persists here and anchors the motif forming below it; driven from loop */}
+        <div ref={this.hdrRef} style={{ position: 'fixed', top: 62, left: 0, right: 0, zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, opacity: 0, pointerEvents: 'none' }}>
+          <span ref={this.hdrKickRef} style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.32em', color: '#4a5c72' }} />
+          <span ref={this.hdrNameRef} style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: 22, letterSpacing: '0.01em', textTransform: 'uppercase', color: '#17222f' }} />
         </div>
       </>
     );

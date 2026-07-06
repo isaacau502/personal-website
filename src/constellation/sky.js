@@ -102,6 +102,9 @@ export function skyLean(place, k = LEAN) {
   return Math.atan2(dx, dy) * k; // 0 = directly above the pole
 }
 
+// Portrait: min-axis (width) starves panel size — grow toward the tall axis.
+const PORTRAIT_S = 1.45;
+
 // Per-frame sky→screen mapping. Positions stretch per-axis to fill the
 // viewport's sky region; `s` (min-axis) sizes the square figure panels.
 export function skyToScreen(W, H, opts = {}) {
@@ -110,15 +113,20 @@ export function skyToScreen(W, H, opts = {}) {
   const margin = W * 0.03;
   const Wu = W - margin * 2;
   const Hu = Math.max(120, bottom - navPad - 34); // 34 = label room under the lowest row
-  const s = Math.min(Wu / SKY_W, Hu / SKY_H);
-  return { ox: margin, oy: navPad, xs: Wu / SKY_W, ys: Hu / SKY_H, s };
+  let s = Math.min(Wu / SKY_W, Hu / SKY_H);
+  let ax = 0; // panel anchor: 0 = top-left (classic)
+  if (H > W) { s = Math.min(s * PORTRAIT_S, Hu / SKY_H); ax = 0.5; } // portrait: bigger panels, centered on the stretched footprint
+  return { ox: margin, oy: navPad, xs: Wu / SKY_W, ys: Hu / SKY_H, s, ax };
 }
 
-// Panel (screen rect) for a placed record under a mapping.
+// Panel (screen rect) for a placed record under a mapping. Anchored at the
+// footprint's top-left classically; centered on it when the mapping sets `ax`
+// (portrait, where s outgrows xs and a top-left anchor would spill the edge).
 export function skyPanel(place, m) {
+  const a = (m.ax || 0) * place.scale;
   return {
-    x0: m.ox + m.xs * place.x,
-    y0: m.oy + m.ys * place.y,
+    x0: m.ox + m.xs * (place.x + a) - m.s * a,
+    y0: m.oy + m.ys * (place.y + a) - m.s * a,
     w: m.s * place.scale,
     h: m.s * place.scale,
   };
