@@ -2058,7 +2058,7 @@ class SlopeBackground extends Component {
                 <span ref={this.tdkRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>TDK</span>
                 <span ref={this.mlRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>ML Intern</span>
               </h2>
-              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Each generation prunes the weak and recombines the strong.</p>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Latest run: a production crash-detection model 35% lighter at +1.3% rare-event F1.</p>
             </div>
             </div>
           </section>
@@ -2111,17 +2111,17 @@ class SlopeBackground extends Component {
 
           <section data-screen-label="Takeoff" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>05 / TAKEOFF</div>
-              <h2 style={{ margin: 0, fontSize: 'clamp(56px, 11vw, 170px)', lineHeight: 0.9, textTransform: 'uppercase' }}>Send it</h2>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>05 / FULL COMMIT</div>
+              <h2 style={{ margin: 0, fontSize: 'clamp(56px, 11vw, 170px)', lineHeight: 0.9, textTransform: 'uppercase' }}>All in</h2>
             </div>
           </section>
 
           {/* 640vh: the extra 140vh over the original 500vh is the night-sky signature dwell */}
           <section data-screen-label="Airborne" style={{ height: '640vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '260vh' }}>
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#dbe7f4' }}>— APPLIED TO CRASH DETECTION —</div>
-              <h2 style={{ margin: 0, fontSize: 'clamp(32px, 5vw, 64px)', lineHeight: 1, textTransform: 'uppercase', color: '#f4f8fd' }}>35% Lighter</h2>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.2em', color: '#c3d5ea' }}>PRODUCTION WEARABLE CRASH-DETECTION MODEL · RARE-EVENT F1 +1.3%</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#dbe7f4' }}>— WHERE I LIKE TO WORK —</div>
+              <h2 style={{ margin: 0, fontSize: 'clamp(28px, 4.2vw, 56px)', lineHeight: 1.05, textTransform: 'uppercase', color: '#f4f8fd' }}>Software that touches<br />the physical world</h2>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.2em', color: '#c3d5ea' }}>SENSORS · PATIENTS · RIDERS · 100HZ STREAMS · TIGHT BUDGETS</div>
             </div>
           </section>
 
