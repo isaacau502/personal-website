@@ -2206,7 +2206,7 @@ class SlopeBackground extends Component {
                   <span ref={this.medRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Medical Solutions</span>
                 </h2>
                 <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Piloted with oncologists at HKU.</p>
-                <a href="https://app.ovismedical.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', color: '#28569e', textDecoration: 'none' }}>VIEW →</a>
+                <a href="https://app.ovismedical.com" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: mob ? 'flex-start' : 'flex-end' }}>TRY THE APP<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
               </div>
             </div>
           </section>
@@ -2224,7 +2224,7 @@ class SlopeBackground extends Component {
                 <span ref={this.llmSubRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>Research</span>
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</p>
-              <a href="/gui-grounded-repair.pdf" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', color: '#28569e', textDecoration: 'none' }}>PAPER →</a>
+              <a href="/gui-grounded-repair.pdf" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: 'flex-start' }}>READ THE PAPER<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
             </div>
             </div>
           </section>
@@ -2239,7 +2239,7 @@ class SlopeBackground extends Component {
                 <span ref={this.dropSubRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Real-time mocap on consumer hardware&mdash;no $50k optical rigs, just an iPhone. A quaternion-based kinematic solver reconstructs rider kinematics from raw 100Hz IMU streams with sub-50ms latency, while a custom backpressure protocol sheds stale frames to keep every joint coherent. WebGL telemetry turns each run into actionable coaching.</p>
-              <a href="https://github.com/isaacau502/DropIn" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', color: '#28569e', textDecoration: 'none' }}>GITHUB →</a>
+              <a href="https://github.com/isaacau502/DropIn" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: mob ? 'flex-start' : 'flex-end' }}>SEE THE CODE<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
             </div>
             </div>
           </section>
@@ -2340,6 +2340,26 @@ class SlopeBackground extends Component {
           .sig-input:focus { border-bottom-color: rgba(255,214,160,0.9); }
           .sig-input::placeholder { color: rgba(201,214,226,0.28); }
           .sig-input:disabled { opacity: 0.45; }
+          /* beat CTA — ghost button; hover: the arrow carves ahead, corduroy
+             grooves trail it, the fill lands a beat later */
+          .beat-cta {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 20px; border: 2px solid #28569e; overflow: hidden;
+            font-family: ui-monospace, monospace; font-size: 13px;
+            letter-spacing: 0.2em; color: #28569e; text-decoration: none;
+            transition: background 0.35s ease 0.12s, color 0.25s ease 0.12s;
+          }
+          .beat-cta .cta-grooves {
+            display: inline-block; width: 0; overflow: hidden; white-space: nowrap;
+            color: #9fb6d0; letter-spacing: -1px; transition: width 0.3s ease;
+          }
+          .beat-cta .cta-arrow { display: inline-block; transition: transform 0.3s ease; }
+          .beat-cta:hover { background: #28569e; color: #eef3f9; }
+          .beat-cta:hover .cta-grooves { width: 40px; color: #cfe0f2; }
+          .beat-cta:hover .cta-arrow { transform: translateX(4px); }
+          @media (prefers-reduced-motion: reduce) {
+            .beat-cta, .beat-cta .cta-grooves, .beat-cta .cta-arrow { transition: none; }
+          }
         `}</style>
         {/* mobile: tighter type/gaps so all three links fit a 390px row without clipping */}
         <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: mob ? 'center' : 'flex-end', padding: mob ? '15px 12px' : '28px 36px', fontFamily: mono, fontSize: mob ? 12.5 : 14, letterSpacing: mob ? '0.13em' : '0.16em', background: mob ? 'var(--nav-bg, rgba(240,244,249,0.68))' : 'none', backdropFilter: mob ? 'blur(10px)' : 'none', WebkitBackdropFilter: mob ? 'blur(10px)' : 'none', transition: 'background 0.45s ease' }}>
