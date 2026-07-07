@@ -1,4 +1,4 @@
-import { Component, createRef } from 'react';
+import { Component, createRef, Fragment } from 'react';
 import { drawConstellation, glowSprite } from './constellation/draw.js';
 import { PROJECT_CONSTELLATIONS } from './constellation/projects.js';
 import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separatePanels, skyLean } from './constellation/sky.js';
@@ -16,8 +16,25 @@ const MB_BP = 768;
 const MB_OUT0 = 0.38, MB_OUT1 = 0.56;
 const MB_HDR0 = 0.44, MB_HDR1 = 0.60;
 const MB_MOTIF0 = 0.50;
+// beats migrating to the concurrent choreography: copy pinned in the top band,
+// motif forming below it, both scrubbing together — no lift-out, no pinned title
+const MB_CONCURRENT = new Set(['tdk']);
 // sig-form anchor on mobile — high enough that the iOS keyboard never covers the input
 const MB_SIG_Y = 0.42;
+// desktop run-line nav: one stop per beat of the run. `frac` = where in the
+// target section to land (viewport-center fraction); the loop marks each stop
+// done / here / ahead from live scroll position, so the bar doubles as a
+// "where am I on the mountain" gauge. Order = scroll order.
+const NAV_STOPS = [
+  { label: 'TOP', frac: 0 },
+  { label: '01 · TDK', frac: 0.30 },
+  { label: '02 · OVIS', frac: 0.30 },
+  { label: '03 · LLM', frac: 0.30 },
+  { label: '04 · DROPIN', frac: 0.30 },
+  { label: 'SKY', frac: 0.72 },
+  { label: 'BASE', frac: 0.5 },
+];
+
 // name/sub anchor the diagram; kick echoes the section's mono lead-in
 const MB_TITLE = {
   tdk: { kick: '01 · MAY 2026 – PRESENT · INTERNSHIP', name: 'TDK', sub: 'ML Intern' },
@@ -360,6 +377,10 @@ class SlopeBackground extends Component {
     this.sigInputRef = createRef();
     this.sigStatusRef = createRef();
     this.navRef = createRef();
+    this.runlineRef = createRef();  // desktop run-line container (per-frame dot states)
+    this.progFillRef = createRef(); // mobile progress-bar fill
+    this.navTargets = [];           // scrollY per NAV_STOPS entry (recomputed on resize)
+    this._navHere = -1;             // last-written active stop index
     this.tdkRef = createRef();
     this.mlRef = createRef();
     this.ovisRef = createRef();
@@ -406,6 +427,7 @@ class SlopeBackground extends Component {
       }
       this.syncHeadlineWidth();
       this.makeRidges();
+      this.computeNavTargets(); // offsetTop/offsetHeight shift with layout
     };
     // deterministic pseudo-random tables
     this.rand = [];
@@ -514,6 +536,9 @@ class SlopeBackground extends Component {
     this.sections = Array.from(document.querySelectorAll('[data-reveal]'));
     // mobile: maps each data-beat copy block to the scroll element that scrubs it
     this.beatEls = { tdk: this.approachEl, ovis: this.lipEl, llm: this.llmEl, drop: this.dropEl };
+    // run-line stops -> scroll targets, in the same order as NAV_STOPS
+    this.navStopEls = [null, this.approachEl, this.lipEl, this.llmEl, this.dropEl, this.airEl, this.landPageRef.current];
+    this.computeNavTargets();
     window.addEventListener('resize', this.resize);
     this.resize();
     this.raf = requestAnimationFrame(this.loop);
@@ -839,9 +864,17 @@ class SlopeBackground extends Component {
       const dd = (r.top + r.height / 2 - H / 2) / H;
       let op = Math.max(0, Math.min(1, 1 - Math.abs(dd) * 1.7));
       let ty = dd * 60;
-      // mobile beats hand the frame from copy to motif: lift the copy out mid-scrub
-      if (this.mob && el.dataset.beat) {
-        const out = smooth(MB_OUT0, MB_OUT1, this.scrubTall(this.beatEls[el.dataset.beat]).grow);
+      const beat = el.dataset.beat;
+      if (this.mob && beat && MB_CONCURRENT.has(beat)) {
+        // pinned copy: opacity tracks the section's own vis (solid through the
+        // dwell, fading only at entry/exit) — the viewport-center proximity fade
+        // would dim it the whole time since it never sits at frame center
+        const s = this.scrubTall(this.beatEls[beat]);
+        op = s.vis;
+        ty = 0;
+      } else if (this.mob && beat) {
+        // non-concurrent beats hand the frame from copy to motif: lift copy out mid-scrub
+        const out = smooth(MB_OUT0, MB_OUT1, this.scrubTall(this.beatEls[beat]).grow);
         op *= 1 - out;
         ty -= out * 50;
       }
@@ -856,6 +889,7 @@ class SlopeBackground extends Component {
       let best = 0, key = '';
       if (this.mob && this.beatEls) {
         for (const k in this.beatEls) {
+          if (MB_CONCURRENT.has(k)) continue; // concurrent beats keep their own copy on screen
           const s = this.scrubTall(this.beatEls[k]);
           const a = smooth(MB_HDR0, MB_HDR1, s.grow) * s.vis;
           if (a > best) { best = a; key = k; }
@@ -902,9 +936,27 @@ class SlopeBackground extends Component {
         nav.style.setProperty('--nav-ink', pale ? '#f4f8fd' : '#17222f');
         nav.style.setProperty('--nav-line', pale ? 'rgba(201,214,226,0.45)' : '#4a5c72');
         nav.style.setProperty('--nav-hover', pale ? '#c9d6e2' : '#4a5c72');
+        // active-stop accent flips to warm amber over the night sky (matches the
+        // sky's caret) and stays project-blue on the daylight slope
+        nav.style.setProperty('--nav-accent', pale ? '#ffd6a0' : '#28569e');
+        // legible text on an accent-filled chip: light on blue, dark on amber
+        nav.style.setProperty('--nav-accent-ink', pale ? '#17222f' : '#eef3f9');
         // mobile scrim flips with the ink so the bar reads over snow and night sky alike
         nav.style.setProperty('--nav-bg', pale ? 'rgba(8,16,30,0.38)' : 'rgba(240,244,249,0.68)');
       }
+    }
+    // run-line wayfinding: mark stops done/here/ahead (write only on change) and
+    // drive the mobile progress fill. Both are pure DOM writes off the hot path.
+    if (this.navTargets.length) {
+      const y = window.scrollY;
+      let here = 0;
+      for (let i = 0; i < this.navTargets.length; i++) if (y >= this.navTargets[i] - 6) here = i;
+      if (this._navHere !== here && this.runlineRef.current) {
+        this._navHere = here;
+        const dots = this.runlineRef.current.querySelectorAll('[data-stop]');
+        dots.forEach((d, i) => { d.dataset.state = i < here ? 'done' : i === here ? 'here' : 'ahead'; });
+      }
+      if (this.progFillRef.current) this.progFillRef.current.style.transform = `scaleX(${this.p.toFixed(4)})`;
     }
 
     // ---- HUD ----
@@ -1126,6 +1178,25 @@ class SlopeBackground extends Component {
     return Math.max(0, Math.min(1, (H * 0.5 - r.top) / Math.max(r.height, 1)));
   }
 
+  // run-line stop -> absolute scrollY that lands the target section's `frac`
+  // point at viewport center. Cached; recomputed on layout change.
+  computeNavTargets() {
+    const H = window.innerHeight;
+    const maxScroll = Math.max(document.documentElement.scrollHeight - H, 1);
+    // landPageRef may not have resolved when first called from mount — read live
+    this.navStopEls[6] = this.landPageRef.current;
+    this.navTargets = NAV_STOPS.map((s, i) => {
+      const el = this.navStopEls[i];
+      if (!el) return 0; // TOP
+      return Math.max(0, Math.min(maxScroll, el.offsetTop + el.offsetHeight * s.frac - H * 0.5));
+    });
+    this._navHere = -1; // force a state re-write next frame
+  }
+
+  navJump = (i) => {
+    window.scrollTo({ top: this.navTargets[i] ?? 0, behavior: 'smooth' });
+  };
+
   // tall sticky sections: copy pins while scroll scrubs the animation.
   // grow runs from half-entry to ~88% of the pinned phase; vis fades at both ends
   scrubTall(el, frac = 0.88) {
@@ -1200,12 +1271,14 @@ class SlopeBackground extends Component {
     // TDK lineage tree — dark-on-snow, right of "The approach" (mobile: full-frame after the copy)
     if (this.approachEl && this.graphA) {
       const s = this.scrubTall(this.approachEl);
-      const grow = this.mGrow(s.grow), vis = s.vis;
+      // concurrent beat: the tree forms alongside the pinned copy across the whole
+      // dwell (small lead-in so it doesn't pop at section entry)
+      const grow = this.mob ? smooth(0.06, 0.96, s.grow) : s.grow, vis = s.vis;
       if (vis > 0.002 && grow > 0.002) {
-        // mobile top stays under the horizon band so the tree sits on snow while the lip
-        // rises; height keyed off width so the tree stays square-ish, not stretched tall
+        // mobile: bottom band, clear of the copy pinned in the top ~45% of the frame;
+        // height keyed off width so the tree stays square-ish, not stretched tall
         const panel = this.mob
-          ? { x0: W * 0.06, x1: W * 0.94, y0: H * 0.30, y1: Math.min(H * 0.88, H * 0.30 + W * 0.92) }
+          ? { x0: W * 0.06, x1: W * 0.94, y0: H * 0.47, y1: Math.min(H * 0.95, H * 0.47 + W * 1.0) }
           : { x0: W * 0.54, x1: W * 0.93, y0: H * 0.18, y1: H * 0.82 };
         this.renderGraph(this.graphA, { grow, vis, t, dark: true, panel });
       }
@@ -2183,15 +2256,17 @@ class SlopeBackground extends Component {
           </section>
 
           {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the lineage-tree formation */}
-          <section id="work" data-screen-label="The approach" style={{ height: mob ? '300vh' : '220vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: mob ? '0 7vw' : '0 8vw' }}>
-            <div data-reveal="1" data-beat="tdk" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
+          <section id="work" data-screen-label="The approach" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: 'flex-start', padding: mob ? '14vh 7vw 0' : '0 8vw' }}>
+            <div data-reveal="1" data-beat="tdk" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>01 · MAY 2026 – PRESENT · INTERNSHIP</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
                 <span ref={this.tdkRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>TDK</span>
-                <span ref={this.mlRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>ML Intern</span>
+                <span ref={this.mlRef} style={{ display: 'block', width: 'fit-content', fontSize: mob ? 'clamp(26px, 8vw, 40px)' : HEADLINE_SIZE, whiteSpace: 'nowrap' }}>ML Intern</span>
               </h2>
-              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Latest run: a production crash-detection model 35% lighter at +1.3% rare-event F1.</p>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>{mob
+                ? <>Algorithms team — SensorFlow, an evolutionary TinyML search shipping sensors inside your iPhone.</>
+                : <>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Latest run: a production crash-detection model 35% lighter at +1.3% rare-event F1.</>}</p>
             </div>
             </div>
           </section>
@@ -2360,25 +2435,78 @@ class SlopeBackground extends Component {
           @media (prefers-reduced-motion: reduce) {
             .beat-cta, .beat-cta .cta-grooves, .beat-cta .cta-arrow { transition: none; }
           }
+          /* wordmark — quiet signage, not a link */
+          .nav-mark { color: var(--nav-ink, #17222f); transition: color 0.45s ease; white-space: nowrap; }
+          /* desktop run-line: stops + connectors, live done/here/ahead states */
+          .runline { display: flex; align-items: center; }
+          .rl-seg { width: 22px; height: 1.5px; background: var(--nav-line, #4a5c72); opacity: 0.55; transition: background 0.45s ease; }
+          .rl-stop {
+            position: relative; width: 9px; height: 9px; padding: 0; margin: 0 1px;
+            border: 1.5px solid var(--nav-ink, #17222f); border-radius: 50%;
+            background: transparent; cursor: pointer; flex: none;
+            transition: background 0.25s ease, border-color 0.45s ease, box-shadow 0.25s ease, transform 0.2s ease;
+          }
+          .rl-stop[data-state="done"] { background: var(--nav-ink, #17222f); }
+          .rl-stop[data-state="here"] {
+            background: var(--nav-accent, #28569e); border-color: var(--nav-accent, #28569e);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--nav-accent, #28569e) 32%, transparent);
+          }
+          .rl-stop:hover { transform: scale(1.25); }
+          .rl-stop:focus-visible { outline: 2px solid var(--nav-accent, #28569e); outline-offset: 3px; }
+          /* label rides below its dot; on hover, or always for the current stop */
+          .rl-label {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+            font-size: 9px; letter-spacing: 0.2em; white-space: nowrap; color: var(--nav-ink, #17222f);
+            opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+          }
+          .rl-stop:hover .rl-label { opacity: 0.9; }
+          .rl-stop[data-state="here"] .rl-label { opacity: 0.9; color: var(--nav-accent, #28569e); }
+          /* only one label at a time: hovering any stop hides the persistent
+             "here" label unless the here stop is the one being hovered */
+          .runline:hover .rl-stop[data-state="here"] .rl-label { opacity: 0; }
+          .runline:hover .rl-stop[data-state="here"]:hover .rl-label { opacity: 0.9; }
+          /* compact resume chip — beat-cta grammar, nav-sized */
+          .nav-resume {
+            display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+            border: 1.5px solid var(--nav-accent, #28569e); color: var(--nav-accent, #28569e);
+            text-decoration: none; letter-spacing: 0.16em; white-space: nowrap;
+            transition: background 0.25s ease, color 0.25s ease, border-color 0.45s ease;
+          }
+          .nav-resume:hover { background: var(--nav-accent, #28569e); color: var(--nav-accent-ink, #eef3f9); }
+          /* mobile: thin descent gauge under the scrim bar */
+          .nav-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--nav-line, #4a5c72); opacity: 0.25; }
+          .nav-prog i { display: block; height: 100%; background: var(--nav-accent, #28569e); transform-origin: left; transform: scaleX(0); }
+          @media (prefers-reduced-motion: reduce) {
+            .rl-stop, .rl-label, .nav-resume { transition: none; }
+          }
         `}</style>
         {/* mobile: tighter type/gaps so all three links fit a 390px row without clipping */}
-        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: mob ? 'center' : 'flex-end', padding: mob ? '15px 12px' : '28px 36px', fontFamily: mono, fontSize: mob ? 12.5 : 14, letterSpacing: mob ? '0.13em' : '0.16em', background: mob ? 'var(--nav-bg, rgba(240,244,249,0.68))' : 'none', backdropFilter: mob ? 'blur(10px)' : 'none', WebkitBackdropFilter: mob ? 'blur(10px)' : 'none', transition: 'background 0.45s ease' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 12 : 22 }}>
-            <a href="#work" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
-              <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block' }} />
-              WORK
-            </a>
-            <span className="nav-sep" style={{ width: 1, height: mob ? 11 : 14 }} />
-            <a href="#projects" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
-              <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block', transform: 'rotate(45deg)' }} />
-              PROJECTS
-            </a>
-            <span className="nav-sep" style={{ width: 1, height: mob ? 11 : 14 }} />
-            <a href="#contact" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: mob ? 5 : 8, textDecoration: 'none' }}>
-              <span style={{ width: mob ? 7 : 9, height: mob ? 7 : 9, background: 'currentColor', display: 'inline-block', borderRadius: '50%' }} />
-              CONTACT
-            </a>
-          </div>
+        {/* Desktop: wordmark (signage) · run-line wayfinding · resume chip.
+            Mobile: wordmark · TOP/SKY/CONTACT · a thin descent gauge under the scrim. */}
+        <nav ref={this.navRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: mob ? '14px 16px' : '28px 36px', fontFamily: mono, fontSize: mob ? 12.5 : 14, letterSpacing: mob ? '0.13em' : '0.16em', background: mob ? 'var(--nav-bg, rgba(240,244,249,0.68))' : 'none', backdropFilter: mob ? 'blur(10px)' : 'none', WebkitBackdropFilter: mob ? 'blur(10px)' : 'none', transition: 'background 0.45s ease' }}>
+          <span className="nav-mark" style={{ fontSize: mob ? 12 : 13, letterSpacing: '0.32em' }}>ISAAC AU</span>
+          {mob ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button onClick={() => this.navJump(0)} className="nav-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', color: 'var(--nav-ink, #17222f)' }}>TOP</button>
+              <button onClick={() => this.navJump(5)} className="nav-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', color: 'var(--nav-ink, #17222f)' }}>SKY</button>
+              <button onClick={() => this.navJump(6)} className="nav-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', color: 'var(--nav-ink, #17222f)' }}>CONTACT</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+              <div className="runline" ref={this.runlineRef}>
+                {NAV_STOPS.map((s, i) => (
+                  <Fragment key={s.label}>
+                    {i > 0 && <span className="rl-seg" />}
+                    <button className="rl-stop" data-stop data-state="ahead" onClick={() => this.navJump(i)} aria-label={'Jump to ' + s.label}>
+                      <span className="rl-label">{s.label}</span>
+                    </button>
+                  </Fragment>
+                ))}
+              </div>
+              <a href="/resume.pdf" target="_blank" rel="noopener noreferrer" className="nav-resume">RESUME ↓</a>
+            </div>
+          )}
+          {mob && <span className="nav-prog"><i ref={this.progFillRef} /></span>}
         </nav>
 
         {/* signature form — opacity/pointer-events driven per-frame by the night factor.
