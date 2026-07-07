@@ -73,60 +73,13 @@ const SKYFILL_NAMES = [
 ];
 const HEADLINE_SIZE = 'clamp(40px, 6vw, 88px)';
 
-// ---- Ovis "Patient Constellation" motif (02 / It rises ahead) ----
-// structure palette stays the slope's; care categories desaturated from the app's landing ring
+// ---- Ovis companion motif (02) palette ----
+// structure stays the slope's ink; care categories desaturated from the app's landing ring.
+// The sheep figure + its choreography live in the SH_* / shPoseSheep block below the class.
 const OV_INKB = '23,52,104';
 const OV_SLATE = '58,78,106';
 const OV_EDGE = '74,94,120';
-const OV_ALERT = '184,69,46';
 const OV_CATS = ['188,92,82', '84,144,148', '198,138,70', '134,118,178', '106,150,102', '88,130,190']; // heart lung meds sleep move hydro
-const OV_NODES = [
-  ['head', 0, -0.460, 1.9], ['neck', 0, -0.365, 1.0], ['chest', 0.014, -0.272, 1.2],
-  ['heart', -0.032, -0.256, 1.3], ['spine', 0.004, -0.130, 0.9], ['gut', -0.004, -0.055, 1.2],
-  ['pelvis', 0, 0.030, 1.1], ['shL', -0.105, -0.315, 1.1], ['shR', 0.108, -0.312, 1.1],
-  ['armL', -0.140, -0.230, 0.7], ['armR', 0.146, -0.228, 0.7], ['elbL', -0.158, -0.150, 0.9],
-  ['elbR', 0.164, -0.152, 0.9], ['wristL', -0.172, -0.040, 0.8], ['wristR', 0.180, -0.048, 0.8],
-  ['handL', -0.176, 0.010, 1.0], ['handR', 0.186, 0.002, 1.0], ['hipL', -0.068, 0.045, 1.0],
-  ['hipR', 0.070, 0.045, 1.0], ['kneeL', -0.076, 0.215, 1.0], ['kneeR', 0.084, 0.218, 1.0],
-  ['shinL', -0.080, 0.320, 0.7], ['shinR', 0.090, 0.325, 0.7], ['footL', -0.088, 0.430, 1.1],
-  ['footR', 0.098, 0.432, 1.1],
-].map((n, i) => ({ id: n[0], x: n[1], y: n[2], r: n[3], o: i }));
-const OV_IDX = {};
-OV_NODES.forEach((n, i) => { OV_IDX[n.id] = i; });
-const OV_EDGES = [
-  ['head', 'neck'], ['neck', 'chest'], ['chest', 'heart'], ['chest', 'spine'], ['spine', 'gut'], ['gut', 'pelvis'],
-  ['neck', 'shL'], ['neck', 'shR'], ['shL', 'armL'], ['armL', 'elbL'], ['elbL', 'wristL'], ['wristL', 'handL'],
-  ['shR', 'armR'], ['armR', 'elbR'], ['elbR', 'wristR'], ['wristR', 'handR'], ['pelvis', 'hipL'], ['pelvis', 'hipR'],
-  ['hipL', 'kneeL'], ['kneeL', 'shinL'], ['shinL', 'footL'], ['hipR', 'kneeR'], ['kneeR', 'shinR'], ['shinR', 'footR'],
-  ['shL', 'heart'], ['shR', 'chest'], ['heart', 'gut'], ['hipL', 'gut'],
-];
-const OV_CROSS_FROM = OV_EDGES.length - 4; // last 4 are faint constellation cross-links
-const OV_SITES = [
-  { id: 'heart', color: OV_CATS[0], base: 0.50, pulse: 1.7 },
-  { id: 'chest', color: OV_CATS[1], base: 0.34, pulse: 1.2 },
-  { id: 'gut', color: OV_CATS[2], base: 0.46, pulse: 1.0 },
-  { id: 'head', color: OV_CATS[3], base: 0.38, pulse: 0.8 },
-  { id: 'kneeR', color: OV_CATS[4], base: 0.34, pulse: 1.4 },
-  { id: 'wristL', color: OV_CATS[5], base: 0.30, pulse: 1.1 },
-];
-const OV_SATS = [
-  { site: 'heart', color: OV_CATS[0], ang: 3.60, rad: 0.135, sp: 0.22 },
-  { site: 'chest', color: OV_CATS[1], ang: 0.55, rad: 0.125, sp: -0.18 },
-  { site: 'gut', color: OV_CATS[2], ang: 2.60, rad: 0.130, sp: 0.16 },
-  { site: 'head', color: OV_CATS[3], ang: 5.60, rad: 0.120, sp: -0.14 },
-  { site: 'kneeR', color: OV_CATS[4], ang: 0.90, rad: 0.120, sp: 0.20 },
-  { site: 'wristL', color: OV_CATS[5], ang: 3.90, rad: 0.110, sp: -0.22 },
-];
-// the AI tracker's outcomes — the app's own vocabulary; every 4th escalates
-const OV_OUTCOMES = [
-  { site: 'heart', cat: 0, color: OV_CATS[2], text: 'FATIGUE · 65% · MILD', high: false },
-  { site: 'head', cat: 3, color: OV_CATS[3], text: 'SLEEP · 7.2HR · GOOD', high: false },
-  { site: 'gut', cat: 2, color: OV_CATS[2], text: 'NAUSEA · 72% · MILD', high: false },
-  { site: 'head', cat: 3, color: OV_ALERT, text: 'HEADACHE · 80% · HIGH', high: true },
-];
-const OV_CONVO_DOTS = 5, OV_DOT_TRAVEL = 1.8, OV_DOT_STAGGER = 0.3;
-const OV_CONVO_DUR = (OV_CONVO_DOTS - 1) * OV_DOT_STAGGER + OV_DOT_TRAVEL;
-const OV_A0 = Math.PI * 0.75, OV_A1 = Math.PI * 2.25; // 270° dial, gap at the bottom
 
 // ---- LLM research "grounded repair constellation" motif (03, right of copy) ----
 // a reticle walks a crooked wireframe; each landing grounds an axis-aligned, labeled
@@ -344,6 +297,302 @@ function diMakeCam(u, W, H) {
   };
 }
 
+// ---- Ovis "companion" motif (02): a woolly Dall sheep built in DropIn's plexus grammar.
+// It assembles bottom center-left, LEAPS to fetch Florence's orb, then trots away up-slope
+// to the north-north-east on a straight line, receding into the distance. Scroll-scrubbed
+// like the rider. `Ovis` is Latin for sheep — the patient is the flock, Florence the shepherd.
+const SH_GLOW = '88,130,190';
+const SH_HORN = '172,116,62';
+// straight world line, aimed up-slope at the corduroy vanishing point (screen ~50%W, horizon):
+// it enters bottom center-left, drifts toward track-center, and CLIMBS (SH_Y) as it recedes,
+// so on screen it rides up the tracks to the vanishing point instead of sliding flat into the snow.
+const SH_S = (u) => Math.pow(u, 1.3);            // eased speed along the line (slow in, quickening)
+const SH_X = (u) => -1.15 + 1.0 * SH_S(u);       // enters left, drifts toward track-center
+const SH_Z = (u) => 1.0 - 25 * SH_S(u);          // recedes into the distance
+const SH_Y = (u) => 4.2 * SH_S(u);               // rises up-slope — climbs toward the horizon
+const SH_YAW = Math.atan2(1.0, -25);             // heading: up-slope, a hair east
+const SH_EXCH = [['SLEEP?', '7.2 HR · GOOD'], ['FATIGUE?', 'LOW · 18%'], ['MOOD?', 'BRIGHT']];
+const SH_REPLY_CAT = [3, 0, 3];
+const shClamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const shBoneRev = (bi, form, nB) => smooth(bi / nB * 0.62, bi / nB * 0.62 + 0.20, form);
+
+// fixed camera slightly left-of-center; world y=0 is the snow, +z toward the viewer
+function shCam(W, H, ox) {
+  const f = 1.5, pos = [0, 1.02, 3.9];
+  const fwd = diNorm(diSub([0, 0.95, 0], pos));
+  const right = diNorm(diCross(fwd, [0, 1, 0]));
+  const up = diCross(right, fwd);
+  return (p) => {
+    const r = diSub(p, pos), z = diDot(r, fwd);
+    if (z < 0.1) return null;
+    return [ox + diDot(r, right) / z * f * H, H * 0.545 - diDot(r, up) / z * f * H, z];
+  };
+}
+
+// posed sheep skeleton (local frame): low deep barrel, short legs, thick neck, curled horns.
+// trot gait (diagonal pairs); `reach` stretches the neck up-forward for the orb fetch.
+function shPoseSheep(P) {
+  const t = P.t || 0, amp = P.trotAmp || 0, ph = P.trotPh || 0, hop = P.hop || 0, rc = P.reach || 0;
+  const bob = amp > 0.001 ? Math.abs(Math.sin(ph)) * 0.016 : 0;
+  const br = Math.sin(t * 1.1) * 0.005;
+  const y0 = hop + bob;
+  const pel = [0, 0.70 + y0, -0.44], wit = [0, 0.74 + y0 + br, 0.30];
+  const tail = diAdd(pel, [Math.sin(t * 11) * 0.05 * (P.wag || 0), 0.06, -0.16]);
+  const neckB = diAdd(wit, [0, 0.03, 0.14]);
+  const pk = P.perk || 0;
+  let headC = diAdd(neckB, [0, 0.13 + 0.04 * pk, 0.17]);
+  headC = diAdd(headC, [0, 0.24 * rc, 0.14 * rc]);
+  let muz = diAdd(headC, [0, -0.05, 0.19]);
+  muz = diAdd(muz, [0, 0.02 * rc, 0.08 * rc]);
+  const flick = Math.sin(t * 9) * 0.004;
+  const earL = diAdd(headC, [-0.085, 0.055, -0.02]), earTL = diAdd(earL, [-0.055, 0.025 + 0.045 * (pk + rc) + flick, -0.02]);
+  const earR = diAdd(headC, [0.085, 0.055, -0.02]), earTR = diAdd(earR, [0.055, 0.025 + 0.045 * (pk + rc) - flick, -0.02]);
+  const horn = (sd) => {
+    const hc = diAdd(headC, [sd * 0.10, 0.045, -0.01]), pts = [];
+    for (let k = 0; k < 6; k++) { const a = 2.05 - 0.72 * k, rr = 0.115 * (1 - k * 0.055); pts.push(diAdd(hc, [sd * 0.016 * k, rr * Math.sin(a), -rr * Math.cos(a)])); }
+    return pts;
+  };
+  const hL = horn(-1), hR = horn(1);
+  const fhL = diAdd(wit, [-0.105, -0.10, 0.01]), fhR = diAdd(wit, [0.105, -0.10, 0.01]);
+  const bhL = diAdd(pel, [-0.105, -0.05, 0]), bhR = diAdd(pel, [0.105, -0.05, 0]);
+  const leg = (hip, phase, front) => {
+    const stp = amp * Math.sin(phase), lf = Math.max(0, Math.cos(phase)) * amp * 0.55;
+    const hoof = [hip[0], 0.04 + lf + hop * 1.3, hip[2] + 0.02 + stp];
+    const mid = diAdd(diMul(diAdd(hip, hoof), 0.5), [0, 0.02, (front ? -0.03 : -0.055) - lf * 0.55]);
+    return [mid, hoof];
+  };
+  const [kFL, hfFL] = leg(fhL, ph, true), [kBR, hfBR] = leg(bhR, ph, false);
+  const [kFR, hfFR] = leg(fhR, ph + Math.PI, true), [kBL, hfBL] = leg(bhL, ph + Math.PI, false);
+  const J = {
+    pel, wit, tail, neckB, headC, muz, earL, earTL, earR, earTR,
+    fhL, fhR, bhL, bhR, kFL, kFR, kBL, kBR, hfFL, hfFR, hfBL, hfBR,
+    siteHeart: diAdd(diL3(wit, pel, 0.20), [0, -0.20, 0.10]),
+    siteGut: diAdd(diL3(wit, pel, 0.62), [0, -0.19, 0.04]),
+    siteHead: diAdd(headC, [0, 0.02, 0.08]),
+  };
+  hL.forEach((p, i) => { J['hL' + i] = p; });
+  hR.forEach((p, i) => { J['hR' + i] = p; });
+  const yaw = P.yaw || 0;
+  for (const k in J) J[k] = diRotY(J[k], yaw);
+  return J;
+}
+
+const SHEEP_BONES = (J) => [
+  [J.pel, J.wit, [0.22, 0.26, 0.25, 0.21], 8],
+  [J.neckB, J.headC, [0.125, 0.09], 5],
+  [J.headC, J.muz, [0.082, 0.05], 4],
+  [J.earL, J.earTL, [0.02, 0.012], 3], [J.earR, J.earTR, [0.02, 0.012], 3],
+  [J.hL0, J.hL2, [0.032, 0.026], 3, SH_HORN], [J.hL2, J.hL4, [0.024, 0.018], 3, SH_HORN], [J.hL4, J.hL5, [0.016, 0.01], 3, SH_HORN],
+  [J.hR0, J.hR2, [0.032, 0.026], 3, SH_HORN], [J.hR2, J.hR4, [0.024, 0.018], 3, SH_HORN], [J.hR4, J.hR5, [0.016, 0.01], 3, SH_HORN],
+  [J.fhL, J.kFL, [0.048, 0.038], 3], [J.kFL, J.hfFL, [0.036, 0.03], 3],
+  [J.fhR, J.kFR, [0.048, 0.038], 3], [J.kFR, J.hfFR, [0.036, 0.03], 3],
+  [J.bhL, J.kBL, [0.052, 0.04], 3], [J.kBL, J.hfBL, [0.036, 0.03], 3],
+  [J.bhR, J.kBR, [0.052, 0.04], 3], [J.kBR, J.hfBR, [0.036, 0.03], 3],
+  [J.pel, J.tail, [0.06, 0.035], 3],
+];
+
+// jittered plexus tubes over the bones — the irregular mesh reads as fleece.
+function shBuildMesh(bones, opts) {
+  const links = (opts && opts.links) != null ? opts.links : 36;
+  const linkDist = (opts && opts.dist) != null ? opts.dist : 0.26;
+  const extra = opts && opts.extra;
+  const verts = [], edges = [], vb = [], bcol = [];
+  bones.forEach((b, bi) => {
+    const a = b[0], c = b[1], radii = b[2], K = b[3];
+    bcol.push(b[4] || null);
+    const d = diNorm(diSub(c, a));
+    const ref = Math.abs(d[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const e1 = diNorm(diCross(d, ref)), e2 = diCross(d, e1);
+    const S = radii.length, base = verts.length;
+    for (let s = 0; s < S; s++) for (let k = 0; k < K; k++) {
+      const vi = verts.length;
+      const tj = shClamp(s / (S - 1) + (diHash(vi * 3 + 7) - 0.5) * 0.16 * (s > 0 && s < S - 1 ? 1 : 0.3), 0, 1);
+      const ce = diL3(a, c, tj);
+      const rr = radii[s] * (0.78 + 0.44 * diHash(vi * 5 + 1));
+      const th = (k + 0.5 * (s % 2)) / K * Math.PI * 2 + (diHash(vi * 7 + 3) - 0.5) * 0.8;
+      verts.push(diAdd(ce, diAdd(diMul(e1, Math.cos(th) * rr), diMul(e2, Math.sin(th) * rr))));
+      vb.push(bi);
+    }
+    let ec = base * 7;
+    for (let s = 0; s < S; s++) for (let k = 0; k < K; k++) {
+      const i0 = base + s * K + k, i1 = base + s * K + (k + 1) % K;
+      if (diHash(++ec) > 0.12) edges.push([i0, i1]);
+      if (s < S - 1) {
+        if (diHash(++ec) > 0.12) edges.push([i0, i0 + K]);
+        if (diHash(++ec) > 0.25) edges.push([i0, base + (s + 1) * K + (k + 1) % K]);
+      }
+    }
+  });
+  for (let k = 0; k < links; k++) {
+    const i = Math.floor(diHash(k * 13 + 2) * verts.length), j = Math.floor(diHash(k * 29 + 5) * verts.length);
+    if (i === j) continue;
+    const dd = diSub(verts[i], verts[j]);
+    if (Math.hypot(dd[0], dd[1], dd[2]) < linkDist) edges.push([i, j]);
+  }
+  if (extra) {
+    const upto = Math.min(extra.upto, verts.length);
+    for (let k = 0; k < extra.count; k++) {
+      const i = Math.floor(diHash(k * 17 + 3) * upto), j = Math.floor(diHash(k * 31 + 9) * upto);
+      if (i === j) continue;
+      const dd = diSub(verts[i], verts[j]);
+      if (Math.hypot(dd[0], dd[1], dd[2]) < extra.dist) edges.push([i, j]);
+    }
+  }
+  return { verts, edges, vb, bcol };
+}
+
+function shDrawMesh(gctx, cam, mesh, nB, form, A) {
+  const { verts, edges, vb, bcol } = mesh;
+  const pts = verts.map(cam);
+  gctx.lineCap = 'round';
+  const passes = [[3.4, 0.05, SH_GLOW, 0], [1.15, 0.46, OV_SLATE, 1]];
+  for (const pass of passes) {
+    gctx.lineWidth = pass[0];
+    for (const e of edges) {
+      const rr = Math.min(shBoneRev(vb[e[0]], form, nB), shBoneRev(vb[e[1]], form, nB));
+      if (rr <= 0.02) continue;
+      const p = pts[e[0]], q = pts[e[1]];
+      if (!p || !q) continue;
+      const col = pass[3] ? (bcol[vb[e[0]]] || pass[2]) : pass[2];
+      gctx.strokeStyle = `rgba(${col},${(pass[1] * rr * A).toFixed(3)})`;
+      gctx.beginPath(); gctx.moveTo(p[0], p[1]);
+      gctx.lineTo(p[0] + (q[0] - p[0]) * rr, p[1] + (q[1] - p[1]) * rr); gctx.stroke();
+    }
+  }
+  for (let i = 0; i < pts.length; i++) {
+    const rr = shBoneRev(vb[i], form, nB);
+    if (rr <= 0.02) continue;
+    const p = pts[i]; if (!p) continue;
+    const hz = diHash(i * 11 + 4);
+    gctx.fillStyle = `rgba(${bcol[vb[i]] || OV_SLATE},${((0.3 + 0.45 * hz) * rr * A).toFixed(3)})`;
+    gctx.beginPath(); gctx.arc(p[0], p[1], (0.7 + hz * 1.1) * rr, 0, 7); gctx.fill();
+  }
+}
+
+// care-category halos + orbiting satellites, anchored to the sheep's body
+const SHEEP_SITES = [
+  { j: 'siteHeart', c: 0, p: 1.7, b: 0.50 }, { j: 'wit', c: 1, p: 1.2, b: 0.24 },
+  { j: 'siteGut', c: 2, p: 1.0, b: 0.44 }, { j: 'siteHead', c: 3, p: 0.8, b: 0.38 },
+  { j: 'kBL', c: 4, p: 1.4, b: 0.30 },
+];
+const SHEEP_SATS = [[0, 3.6, 0.10, 0.22], [2, 2.6, 0.095, 0.16], [3, 5.6, 0.09, -0.14]];
+
+function shDrawSites(gctx, cam, J, t, form, A, H, boosts) {
+  const haloA = smooth(0.55, 0.80, form) * A;
+  if (haloA > 0.01) for (const s of SHEEP_SITES) {
+    const P = cam(J[s.j]); if (!P) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(t * s.p + s.b * 9);
+    const boost = boosts ? (boosts[s.c] || 0) : 0;
+    const col = OV_CATS[s.c];
+    const rr = H * (0.038 + pulse * 0.012 + boost * 0.022);
+    const a = (s.b * (0.5 + 0.5 * pulse) + boost * 0.5) * haloA;
+    const g = gctx.createRadialGradient(P[0], P[1], 0, P[0], P[1], rr);
+    g.addColorStop(0, `rgba(${col},${(a * 0.5).toFixed(3)})`);
+    g.addColorStop(1, `rgba(${col},0)`);
+    gctx.fillStyle = g; gctx.beginPath(); gctx.arc(P[0], P[1], rr, 0, 7); gctx.fill();
+    gctx.fillStyle = `rgba(${col},${(0.88 * haloA).toFixed(3)})`;
+    gctx.beginPath(); gctx.arc(P[0], P[1], 2.5 + boost * 1.8, 0, 7); gctx.fill();
+  }
+  const satA = smooth(0.62, 0.86, form) * A;
+  if (satA > 0.01) for (const sc of SHEEP_SATS) {
+    const s = SHEEP_SITES[sc[0]];
+    const P = cam(J[s.j]); if (!P) continue;
+    const ang = sc[1] + t * sc[3];
+    const sx = P[0] + Math.cos(ang) * H * sc[2], sy = P[1] + Math.sin(ang) * H * sc[2] * 0.85;
+    gctx.strokeStyle = `rgba(${OV_CATS[s.c]},${(0.20 * satA).toFixed(3)})`; gctx.lineWidth = 1;
+    gctx.beginPath(); gctx.moveTo(P[0], P[1]); gctx.lineTo(sx, sy); gctx.stroke();
+    gctx.fillStyle = `rgba(${OV_CATS[s.c]},${(0.8 * satA).toFixed(3)})`;
+    gctx.beginPath(); gctx.arc(sx, sy, 2.2, 0, 7); gctx.fill();
+  }
+}
+
+function shGroundGlow(gctx, cam, H, a, wx, wy, wz) {
+  const fpt = cam([wx, wy, wz]); if (!fpt || a <= 0.02) return;
+  const sc = Math.min(1, 3.9 / fpt[2]);
+  gctx.save(); gctx.translate(fpt[0], fpt[1] + 2); gctx.scale(sc, 0.18 * sc);
+  const g = gctx.createRadialGradient(0, 0, 0, 0, 0, H * 0.32);
+  g.addColorStop(0, `rgba(255,255,255,${(0.5 * a).toFixed(3)})`);
+  g.addColorStop(0.6, `rgba(216,230,250,${(0.26 * a).toFixed(3)})`);
+  g.addColorStop(1, 'rgba(216,230,250,0)');
+  gctx.fillStyle = g; gctx.beginPath(); gctx.arc(0, 0, H * 0.32, 0, 7); gctx.fill();
+  gctx.restore();
+}
+
+// Florence's orb: a luminous point with a soft twinkle cross
+function shOrb(gctx, x, y, t, A) {
+  if (A <= 0.01) return;
+  const r = 5, R = r * 3.2;
+  const g = gctx.createRadialGradient(x, y, 0, x, y, R);
+  g.addColorStop(0, `rgba(120,160,230,${(0.5 * A).toFixed(3)})`);
+  g.addColorStop(1, 'rgba(120,160,230,0)');
+  gctx.fillStyle = g; gctx.beginPath(); gctx.arc(x, y, R, 0, 7); gctx.fill();
+  gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * A).toFixed(3)})`;
+  gctx.beginPath(); gctx.arc(x, y, r * (1 + 0.08 * Math.sin(t * 3)), 0, 7); gctx.fill();
+  const sr = r * 2.1 + Math.sin(t * 2.3) * 1.2;
+  gctx.strokeStyle = `rgba(${OV_INKB},${(0.45 * A).toFixed(3)})`; gctx.lineWidth = 1;
+  gctx.beginPath(); gctx.moveTo(x - sr, y); gctx.lineTo(x + sr, y);
+  gctx.moveTo(x, y - sr); gctx.lineTo(x, y + sr); gctx.stroke();
+}
+
+// terse readout speech bubble: who==='f' Florence (filled), else patient (outlined)
+function shBubble(gctx, x, y, text, who, a, tailDX) {
+  if (a <= 0.01) return;
+  gctx.font = '700 10.5px ui-monospace, Menlo, monospace';
+  const tw = gctx.measureText(text).width, pw = tw + 16, ph = 20;
+  const sc = 0.85 + 0.15 * smooth(0, 1, a);
+  gctx.save(); gctx.translate(x, y); gctx.scale(sc, sc);
+  const bx = -pw / 2, by = -ph - 7, rd = 6;
+  const tx = shClamp(tailDX, bx + 9, bx + pw - 9);
+  gctx.beginPath();
+  gctx.moveTo(bx + rd, by);
+  gctx.lineTo(bx + pw - rd, by); gctx.quadraticCurveTo(bx + pw, by, bx + pw, by + rd);
+  gctx.lineTo(bx + pw, by + ph - rd); gctx.quadraticCurveTo(bx + pw, by + ph, bx + pw - rd, by + ph);
+  gctx.lineTo(tx + 5, by + ph); gctx.lineTo(tx, by + ph + 6); gctx.lineTo(tx - 5, by + ph);
+  gctx.lineTo(bx + rd, by + ph); gctx.quadraticCurveTo(bx, by + ph, bx, by + ph - rd);
+  gctx.lineTo(bx, by + rd); gctx.quadraticCurveTo(bx, by, bx + rd, by);
+  gctx.closePath();
+  if (who === 'f') {
+    gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * a).toFixed(3)})`; gctx.fill();
+    gctx.fillStyle = `rgba(246,249,253,${(0.96 * a).toFixed(3)})`;
+  } else {
+    gctx.fillStyle = `rgba(255,255,255,${(0.93 * a).toFixed(3)})`; gctx.fill();
+    gctx.strokeStyle = `rgba(${OV_EDGE},${(0.55 * a).toFixed(3)})`; gctx.lineWidth = 1; gctx.stroke();
+    gctx.fillStyle = `rgba(${OV_INKB},${(0.95 * a).toFixed(3)})`;
+  }
+  gctx.fillText(text, bx + 8, by + 13.5);
+  gctx.restore();
+}
+
+// compact 270° wellness dial
+function shDial(gctx, cx, cy, R, score, A, t) {
+  if (A <= 0.02) return;
+  const A0 = Math.PI * 0.75, A1 = Math.PI * 2.25;
+  gctx.lineCap = 'round';
+  gctx.strokeStyle = `rgba(${OV_EDGE},${(0.20 * A).toFixed(3)})`; gctx.lineWidth = 3;
+  gctx.beginPath(); gctx.arc(cx, cy, R, A0, A1); gctx.stroke();
+  const fe = A0 + (A1 - A0) * (score / 100);
+  gctx.strokeStyle = `rgba(${OV_INKB},${(0.85 * A).toFixed(3)})`;
+  gctx.beginPath(); gctx.arc(cx, cy, R, A0, fe); gctx.stroke();
+  gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * A).toFixed(3)})`;
+  gctx.beginPath(); gctx.arc(cx + Math.cos(fe) * R, cy + Math.sin(fe) * R, 2.6 + 0.4 * Math.sin(t * 3), 0, 7); gctx.fill();
+  gctx.font = '700 14px ui-monospace, Menlo, monospace';
+  const st = score.toFixed(1), sw = gctx.measureText(st).width;
+  gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * A).toFixed(3)})`;
+  gctx.fillText(st, cx - sw / 2, cy + 5);
+  gctx.font = '700 6.5px ui-monospace, Menlo, monospace';
+  const lw = gctx.measureText('WELLNESS').width;
+  gctx.fillStyle = `rgba(${OV_EDGE},${(0.7 * A).toFixed(3)})`;
+  gctx.fillText('WELLNESS', cx - lw / 2, cy + R * 0.82);
+}
+
+function shScoreFloat(gctx, u, dx, dy, H, A) {
+  const fa = Math.min(smooth(0.40, 0.44, u), 1 - smooth(0.54, 0.60, u)) * A;
+  if (fa <= 0.01) return;
+  gctx.font = '700 11px ui-monospace, Menlo, monospace';
+  gctx.fillStyle = `rgba(${OV_CATS[4]},${fa.toFixed(3)})`;
+  gctx.fillText('+0.7', dx + H * 0.10, dy - H * 0.02 - smooth(0.40, 0.60, u) * 22);
+}
+
 class SlopeBackground extends Component {
   static defaultProps = {
     carve: 1,
@@ -510,6 +759,7 @@ class SlopeBackground extends Component {
     // project constellations from src/constellation/projects.js)
     // Ovis patient-constellation engine (check-in conversations -> classifications)
     this.ovisEng = { elapsed: 0, convo: null, readings: [], next: 1.6, ix: 0 };
+    this.shp = { ph: 0, uPrev: null }; // sheep trot phase + last scroll pos (for cadence)
     this.lipEl = document.querySelector('[data-screen-label="The lip"]');
     this.llmEl = document.querySelector('[data-screen-label="LLM research"]');
     this.dropEl = document.querySelector('[data-screen-label="DropIn"]');
@@ -524,6 +774,17 @@ class SlopeBackground extends Component {
     this.computeNavTargets();
     window.addEventListener('resize', this.resize);
     this.resize();
+    // arriving from /work via #sky / #contact: jump to that stop once layout
+    // settles, and snap the smoothed progress so we don't scrub the whole run
+    const jump = { '#sky': 5, '#contact': 6 }[window.location.hash];
+    if (jump !== undefined) {
+      setTimeout(() => {
+        const y = this.navTargets[jump] || 0;
+        window.scrollTo(0, y);
+        const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+        this.p = this.pRaw = Math.min(1, y / maxScroll);
+      }, 60);
+    }
     this.raf = requestAnimationFrame(this.loop);
 
     // the shared sky: visitor constellations join the project seeds. Layout
@@ -1544,242 +1805,67 @@ class SlopeBackground extends Component {
     if (!gctx || !this.lipEl) return;
     const W = this.W, H = this.H;
     const r = this.lipEl.getBoundingClientRect();
-    // scroll-scrubbed formation: the sticky dwell (section height - 100vh) is the scrub range,
-    // with a lead-in as the section arrives — scrolling back unforms it
+    // scroll-scrubbed run: the sticky dwell (section height - 100vh) is the scrub range,
+    // with a lead-in as the section arrives — scrolling back rewinds the whole beat
     const dwell = Math.max(r.height - H, 1);
     const lead = H * 0.45;
-    const grow = this.cGrow(Math.max(0, Math.min(1, (lead - r.top) / (dwell + lead))));
+    const u = this.cGrow(Math.max(0, Math.min(1, (lead - r.top) / (dwell + lead))));
     const enter = Math.max(0, Math.min(1, (H * 0.85 - r.top) / (H * 0.35)));
     const exit = Math.max(0, Math.min(1, (r.top + r.height - H * 0.15) / (H * 0.35)));
-    const vis = Math.min(enter, exit) * this.exitFade(this.lipEl);
-    if (vis <= 0.002 || grow <= 0.002) return;
-    const A = vis;
+    const A = Math.min(enter, exit) * this.exitFade(this.lipEl);
+    if (A <= 0.002 || u <= 0.002) return;
 
-    // check-in engine only runs while the beat is on screen and formed
+    // wall-clock time drives only ambient life (breathing, ear flick, orb twinkle);
+    // everything structural is a pure function of the scroll position `u`
     const eng = this.ovisEng;
-    if (grow > 0.9) {
-      eng.elapsed += dt;
-      if (!eng.convo) {
-        eng.next -= dt;
-        if (eng.next <= 0) eng.convo = { born: eng.elapsed };
-      } else if (eng.elapsed - eng.convo.born >= OV_CONVO_DUR) {
-        eng.readings.push({ ...OV_OUTCOMES[eng.ix++ % OV_OUTCOMES.length], born: eng.elapsed });
-        eng.convo = null;
-        eng.next = 9;
-      }
-      eng.readings = eng.readings.filter((rd) => eng.elapsed - rd.born < 3.0);
-    }
+    eng.elapsed += dt;
     const et = eng.elapsed;
-
-    // mobile: seated in the bottom band, clear of the copy pinned in the top ~45%;
-    // fh capped by width so the dial ring never runs past the portrait edges
+    const shp = this.shp;
     const mob = this.mob;
-    const cx = mob ? W * 0.5 : W * 0.27, cy = mob ? H * 0.66 : H * 0.50;
-    const fh = mob ? Math.min(H * 0.34, W * 0.56) : H * 0.68;
-    const breathe = (id) => {
-      const b = Math.sin(et * 1.4) * 0.004;
-      if (id === 'chest' || id === 'heart') return -b * 1.6;
-      if (id === 'shL' || id === 'shR') return -b;
-      if (id === 'head') return -b * 0.7;
-      return 0;
-    };
-    const XY = (i) => [cx + OV_NODES[i].x * fh, cy + (OV_NODES[i].y + breathe(OV_NODES[i].id)) * fh];
-    const rev = (o) => smooth(o / OV_NODES.length * 0.34, o / OV_NODES.length * 0.34 + 0.10, grow);
+    const ox = W * 0.5; // aim the recede at the corduroy vanishing point (screen center)
+    const cam = shCam(W, H, ox);
 
-    // ---- wellness ring, in the back — the gauge asset from the concept board ----
-    const R = fh * 0.66;
-    const arcA = smooth(0.08, 0.35, grow) * A;
-    const segA = smooth(0.3, 0.6, grow);
-    const scoreP = smooth(0.45, 0.85, grow);
-    const score = 61 + (82.5 - 61) * scoreP + Math.sin(et * 0.3) * 0.15 * scoreP;
-    if (arcA > 0.01) {
-      // track sweeps in
-      gctx.strokeStyle = `rgba(${OV_EDGE},${(0.18 * arcA).toFixed(3)})`;
-      gctx.lineWidth = 4.5;
-      gctx.lineCap = 'round';
-      gctx.beginPath();
-      gctx.arc(cx, cy, R, OV_A0, OV_A0 + (OV_A1 - OV_A0) * smooth(0.08, 0.4, grow));
-      gctx.stroke();
-      // score fill
-      const fillEnd = OV_A0 + (OV_A1 - OV_A0) * (score / 100) * smooth(0.25, 0.6, grow);
-      gctx.strokeStyle = `rgba(${OV_INKB},${(0.85 * arcA).toFixed(3)})`;
-      gctx.lineWidth = 4.5;
-      gctx.beginPath();
-      gctx.arc(cx, cy, R, OV_A0, fillEnd);
-      gctx.stroke();
-      gctx.lineCap = 'butt';
-      // endpoint glow
-      if (grow > 0.3) {
-        const ex = cx + Math.cos(fillEnd) * R, ey = cy + Math.sin(fillEnd) * R;
-        const gl = gctx.createRadialGradient(ex, ey, 0, ex, ey, 10);
-        gl.addColorStop(0, `rgba(${OV_INKB},${(0.5 * arcA).toFixed(3)})`);
-        gl.addColorStop(1, `rgba(${OV_INKB},0)`);
-        gctx.fillStyle = gl;
-        gctx.beginPath(); gctx.arc(ex, ey, 10, 0, 7); gctx.fill();
-        gctx.fillStyle = `rgba(${OV_INKB},${(0.95 * arcA).toFixed(3)})`;
-        gctx.beginPath(); gctx.arc(ex, ey, 3.2, 0, 7); gctx.fill();
-      }
-      // colored category segments outside the ring
-      const segSpan = (OV_A1 - OV_A0) / OV_CATS.length;
-      for (let i = 0; i < OV_CATS.length; i++) {
-        const s0 = OV_A0 + i * segSpan + 0.05, s1 = OV_A0 + (i + 1) * segSpan - 0.05;
-        const mid = (s0 + s1) / 2;
-        const reveal = smooth(0.3 + i * 0.05, 0.45 + i * 0.05, grow);
-        if (reveal <= 0.01) continue;
-        let boost = 0, isHigh = false;
-        for (const rd of eng.readings) {
-          if (rd.cat !== i) continue;
-          const age = et - rd.born;
-          boost = Math.max(boost, Math.max(0, 1 - Math.abs(age - 0.4) / 1.6));
-          if (rd.high) isHigh = true;
-        }
-        const col = isHigh && boost > 0.1 ? OV_ALERT : OV_CATS[i];
-        gctx.strokeStyle = `rgba(${col},${((0.4 + boost * 0.55) * reveal * segA * A).toFixed(3)})`;
-        gctx.lineWidth = 2.5 + boost * 1.5;
-        gctx.beginPath(); gctx.arc(cx, cy, R + 11, s0, s1); gctx.stroke();
-        const pulse = 0.5 + 0.5 * Math.sin(et * 1.3 + i * 1.1);
-        const mx = cx + Math.cos(mid) * (R + 17), my = cy + Math.sin(mid) * (R + 17);
-        gctx.fillStyle = `rgba(${col},${((0.55 + pulse * 0.3 + boost * 0.15) * reveal * segA * A).toFixed(3)})`;
-        gctx.beginPath(); gctx.arc(mx, my, 2.6 + boost * 1.6, 0, 7); gctx.fill();
-      }
-      // the score, in the ring's bottom gap
-      if (scoreP > 0.02) {
-        gctx.font = '600 22px ui-monospace, Menlo, monospace';
-        const st = score.toFixed(1);
-        const sw = gctx.measureText(st).width;
-        gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * scoreP * A).toFixed(3)})`;
-        gctx.fillText(st, cx - sw / 2, cy + R * 0.80);
-        gctx.font = '9px ui-monospace, Menlo, monospace';
-        const lb = 'WELLNESS';
-        const lw = gctx.measureText(lb).width;
-        gctx.fillStyle = `rgba(${OV_EDGE},${(0.65 * scoreP * A).toFixed(3)})`;
-        gctx.fillText(lb, cx - lw / 2, cy + R * 0.80 + 14);
-      }
-    }
+    // assembles quickly on entry, then disassembles (reveal runs in reverse) as it
+    // recedes up-slope — the sheep dissolves into the distance well before the section exits
+    const form = smooth(0.02, 0.15, u) * (1 - smooth(0.58, 0.74, u));
+    const gaitOn = smooth(0.03, 0.12, u);             // legs pick up almost immediately
+    const du = shp.uPrev == null ? 0 : u - shp.uPrev; // scroll delta drives the trot cadence
+    shp.uPrev = u;
+    shp.ph += du * (gaitOn * 180);
 
-    // ---- site halos (behind the figure) ----
-    const haloA = smooth(0.45, 0.70, grow) * A;
-    if (haloA > 0.01) {
-      for (const s of OV_SITES) {
-        const [sx, sy] = XY(OV_IDX[s.id]);
-        const pulse = 0.5 + 0.5 * Math.sin(et * s.pulse + s.base * 9);
-        let boost = 0, boostCol = null;
-        for (const rd of eng.readings) {
-          if (rd.site !== s.id) continue;
-          const age = et - rd.born;
-          boost = Math.max(boost, Math.max(0, 1 - Math.abs(age - 0.4) / 1.4));
-          if (rd.high) boostCol = OV_ALERT;
-        }
-        const col = boostCol || s.color;
-        const rr = fh * (0.052 + pulse * 0.018 + boost * 0.03);
-        const a = (s.base * (0.5 + pulse * 0.5) + boost * 0.5) * haloA;
-        const gl = gctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
-        gl.addColorStop(0, `rgba(${col},${(a * 0.5).toFixed(3)})`);
-        gl.addColorStop(1, `rgba(${col},0)`);
-        gctx.fillStyle = gl;
-        gctx.beginPath(); gctx.arc(sx, sy, rr, 0, 7); gctx.fill();
-      }
-    }
+    // fetch beat: the sheep lifts its head to the orb floating above (no jump — stays grounded)
+    const reach = (u > 0.24 && u < 0.46) ? Math.sin(shClamp((u - 0.24) / 0.22, 0, 1) * Math.PI) : 0;
 
-    // ---- satellites tethered to care sites ----
-    const satA = smooth(0.52, 0.78, grow) * A;
-    if (satA > 0.01) {
-      for (const s of OV_SATS) {
-        const [ax, ay] = XY(OV_IDX[s.site]);
-        const ang = s.ang + et * s.sp;
-        const sx = ax + Math.cos(ang) * fh * s.rad;
-        const sy = ay + Math.sin(ang) * fh * s.rad * 0.85;
-        gctx.strokeStyle = `rgba(${s.color},${(0.22 * satA).toFixed(3)})`;
-        gctx.lineWidth = 1;
-        gctx.beginPath(); gctx.moveTo(ax, ay); gctx.lineTo(sx, sy); gctx.stroke();
-        gctx.fillStyle = `rgba(${s.color},${(0.8 * satA).toFixed(3)})`;
-        gctx.beginPath(); gctx.arc(sx, sy, 2.4, 0, 7); gctx.fill();
-      }
-    }
+    const qa = Math.min(smooth(0.12, 0.19, u), 1 - smooth(0.28, 0.33, u));   // Florence's question
+    const ra = Math.min(smooth(0.44, 0.50, u), 1 - smooth(0.66, 0.74, u));   // the readout, once caught
+    const boost = Math.min(smooth(0.36, 0.40, u), 1 - smooth(0.50, 0.56, u));
+    const scoreT = smooth(0.38, 0.50, u);
+    const ix = 0;
 
-    // ---- figure edges + nodes ----
-    OV_EDGES.forEach((e, ei) => {
-      const a = OV_IDX[e[0]], b = OV_IDX[e[1]];
-      const er = Math.min(rev(OV_NODES[a].o), rev(OV_NODES[b].o));
-      if (er <= 0.01) return;
-      const [x0, y0] = XY(a), [x1, y1] = XY(b);
-      const ex = x0 + (x1 - x0) * er, ey = y0 + (y1 - y0) * er;
-      const cross = ei >= OV_CROSS_FROM;
-      gctx.strokeStyle = cross
-        ? `rgba(${OV_EDGE},${(0.16 * er * A).toFixed(3)})`
-        : `rgba(${OV_SLATE},${(0.48 * er * A).toFixed(3)})`;
-      gctx.lineWidth = cross ? 1 : 1.4;
-      gctx.beginPath(); gctx.moveTo(x0, y0); gctx.lineTo(ex, ey); gctx.stroke();
-    });
-    const baseR = Math.min(W, H) * 0.0075;
-    for (let i = 0; i < OV_NODES.length; i++) {
-      const n = OV_NODES[i];
-      const cr = rev(n.o);
-      if (cr <= 0.01) continue;
-      const [nx, ny] = XY(i);
-      const tw = 1 + Math.sin(et * 1.8 + n.x * 30 + n.y * 20) * 0.08;
-      const site = OV_SITES.find((s) => s.id === n.id);
-      const rad = baseR * n.r * cr * tw;
-      const glowCol = site ? site.color : OV_SLATE;
-      const glowR = rad * (site ? 3.4 : 2.6);
-      const glowA = (site ? 0.28 : 0.18) * cr * A;
-      const gl = gctx.createRadialGradient(nx, ny, 0, nx, ny, glowR);
-      gl.addColorStop(0, `rgba(${glowCol},${glowA.toFixed(3)})`);
-      gl.addColorStop(1, `rgba(${glowCol},0)`);
-      gctx.fillStyle = gl;
-      gctx.beginPath(); gctx.arc(nx, ny, glowR, 0, 7); gctx.fill();
-      gctx.fillStyle = site
-        ? `rgba(${site.color},${(0.92 * cr * A).toFixed(3)})`
-        : `rgba(${OV_SLATE},${((0.55 + 0.3 * n.r / 1.9) * cr * A).toFixed(3)})`;
-      gctx.beginPath(); gctx.arc(nx, ny, rad, 0, 7); gctx.fill();
-    }
+    const px = SH_X(u), py = SH_Y(u), pz = SH_Z(u);
+    const J0 = shPoseSheep({ t: et, yaw: SH_YAW, trotPh: shp.ph, trotAmp: gaitOn * 0.13, reach, perk: Math.max(reach, qa), wag: Math.max(0.3 * form, ra) });
+    const J = {}; for (const k in J0) J[k] = diAdd(J0[k], [px, py, pz]);
 
-    // ---- Florence conversation: message dots streaming in from the left ----
-    if (eng.convo) {
-      const [hx, hy] = XY(OV_IDX.head);
-      const sx = -8, sy = hy - H * 0.10;
-      const bend = -H * 0.06;
-      gctx.strokeStyle = `rgba(${OV_INKB},${(0.08 * A).toFixed(3)})`;
-      gctx.lineWidth = 1;
-      gctx.setLineDash([2, 5]);
-      gctx.beginPath();
-      gctx.moveTo(sx, sy);
-      gctx.quadraticCurveTo((sx + hx) / 2, (sy + hy) / 2 + bend, hx, hy);
-      gctx.stroke();
-      gctx.setLineDash([]);
-      const age = et - eng.convo.born;
-      for (let k = 0; k < OV_CONVO_DOTS; k++) {
-        const f = (age - k * OV_DOT_STAGGER) / OV_DOT_TRAVEL;
-        if (f <= 0 || f >= 1) continue;
-        const ff = smooth(0, 1, f);
-        const mx = (sx + hx) / 2, my = (sy + hy) / 2 + bend;
-        const ia = 1 - ff;
-        const px = ia * ia * sx + 2 * ia * ff * mx + ff * ff * hx;
-        const py = ia * ia * sy + 2 * ia * ff * my + ff * ff * hy;
-        const florence = k % 2 === 0;
-        gctx.fillStyle = florence ? `rgba(${OV_INKB},${(0.85 * A).toFixed(3)})` : `rgba(${OV_SLATE},${(0.7 * A).toFixed(3)})`;
-        gctx.beginPath(); gctx.arc(px, py, florence ? 2.6 : 2.0, 0, 7); gctx.fill();
-      }
-    }
+    shGroundGlow(gctx, cam, H, form * A, px, py, pz);
+    shDrawMesh(gctx, cam, shBuildMesh(SHEEP_BONES(J), { links: 26, dist: 0.22, extra: { count: 60, dist: 0.36, upto: 32 } }), 20, form, A);
+    shDrawSites(gctx, cam, J, et, form, A, H, { [SH_REPLY_CAT[ix]]: boost });
 
-    // ---- classification readouts + red pulse ----
-    gctx.font = '10px ui-monospace, Menlo, monospace';
-    for (const rd of eng.readings) {
-      const age = et - rd.born;
-      const a = Math.min(smooth(0, 0.35, age), 1 - smooth(2.2, 3.0, age)) * A;
-      if (a <= 0.01) continue;
-      const [sx, sy] = XY(OV_IDX[rd.site]);
-      gctx.fillStyle = `rgba(${rd.high ? OV_ALERT : rd.color},${(0.95 * a).toFixed(3)})`;
-      // mobile: keep the readout inside the narrow viewport
-      let tx = sx + 18;
-      if (mob) tx = Math.max(4, Math.min(tx, W - 8 - gctx.measureText(rd.text).width));
-      gctx.fillText(rd.text, tx, sy - 9);
-      if (rd.high && age < 1.1) {
-        gctx.strokeStyle = `rgba(${OV_ALERT},${(0.55 * (1 - age / 1.1) * A).toFixed(3)})`;
-        gctx.lineWidth = 1.5;
-        gctx.beginPath(); gctx.arc(sx, sy, 6 + age * 28, 0, 7); gctx.stroke();
-      }
-    }
+    // the orb Florence carries: floats ahead up-slope, then settles high above the head and rides along
+    const attach = smooth(0.34, 0.46, u);
+    const hd = J.headC;
+    const orbW = [
+      diLp(px + 0.10, hd[0] + 0.04, attach),
+      diLp(py + 1.05 + 0.05 * Math.sin(et * 2.1), hd[1] + 0.40, attach),
+      diLp(pz - 0.80, hd[2] + 0.02, attach),
+    ];
+    const orbP = cam(orbW), headP = cam(hd);
+    if (orbP) shOrb(gctx, orbP[0], orbP[1], et, form * A);
+    if (orbP) shBubble(gctx, orbP[0] + 8, orbP[1] - 14, SH_EXCH[ix][0], 'f', qa * A, -6);
+    if (headP) shBubble(gctx, headP[0] - 52, headP[1] - 30, SH_EXCH[ix][1], 'p', ra * A, 24);
+
+    const dx = mob ? W * 0.18 : W * 0.07, dy = mob ? H * 0.30 : H * 0.22;
+    shDial(gctx, dx, dy, H * 0.085, 76.4 + 0.7 * scoreT, form * A, et);
+    shScoreFloat(gctx, u, dx, dy, H, A);
   }
 
   drawLLM(t) {
@@ -2468,7 +2554,7 @@ class SlopeBackground extends Component {
           <span className="nav-mark" style={{ fontSize: mob ? 12 : 13, letterSpacing: '0.32em' }}>ISAAC AU</span>
           {mob ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button onClick={() => this.navJump(0)} className="nav-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', color: 'var(--nav-ink, #17222f)' }}>TOP</button>
+              <a href="/work" className="nav-link" style={{ textDecoration: 'none', color: 'var(--nav-ink, #17222f)' }}>WORK</a>
               <button onClick={() => this.navJump(5)} className="nav-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', color: 'var(--nav-ink, #17222f)' }}>SKY</button>
               <button onClick={() => this.navJump(6)} className="nav-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', color: 'var(--nav-ink, #17222f)' }}>CONTACT</button>
             </div>
@@ -2484,6 +2570,7 @@ class SlopeBackground extends Component {
                   </Fragment>
                 ))}
               </div>
+              <a href="/work" className="nav-link" style={{ textDecoration: 'none', color: 'var(--nav-ink, #17222f)', letterSpacing: '0.16em' }}>WORK</a>
               <a href="/resume.pdf" target="_blank" rel="noopener noreferrer" className="nav-resume">RESUME ↓</a>
             </div>
           )}
