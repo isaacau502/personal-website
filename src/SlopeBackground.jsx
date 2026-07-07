@@ -303,29 +303,35 @@ function diMakeCam(u, W, H) {
 // like the rider. `Ovis` is Latin for sheep — the patient is the flock, Florence the shepherd.
 const SH_GLOW = '88,130,190';
 const SH_HORN = '172,116,62';
-// straight world line, aimed up-slope at the corduroy vanishing point (screen ~50%W, horizon):
-// it enters bottom center-left, drifts toward track-center, and CLIMBS (SH_Y) as it recedes,
-// so on screen it rides up the tracks to the vanishing point instead of sliding flat into the snow.
-const SH_S = (u) => Math.pow(u, 1.3);            // eased speed along the line (slow in, quickening)
-const SH_X = (u) => -1.15 + 1.0 * SH_S(u);       // enters left, drifts toward track-center
-const SH_Z = (u) => 1.0 - 25 * SH_S(u);          // recedes into the distance
-const SH_Y = (u) => 4.2 * SH_S(u);               // rises up-slope — climbs toward the horizon
-const SH_YAW = Math.atan2(1.0, -25);             // heading: up-slope, a hair east
+// one big circular carve on the snow (constant radius + constant angular speed = a single
+// smooth motion). It enters bottom center-left, bows out left, and sweeps back while receding.
+// The heading is yaw = -theta, so it turns continuously with the arc — no flip, no straightening.
+const SH_SCALE = 1.5;                            // goat size (local mesh multiplier)
+const SH_CX = -16, SH_CZ = -6, SH_R = 15;        // wide circle, center far-left → gentle right-bowing carve
+const SH_T0 = 22 * Math.PI / 180, SH_T1 = -15 * Math.PI / 180;
+const SH_TH = (u) => SH_T0 + (SH_T1 - SH_T0) * shClamp(u / 0.7, 0, 1); // arc completes by u~0.7, then holds while it dissolves
+const SH_X = (u) => SH_CX + SH_R * Math.cos(SH_TH(u));
+const SH_Z = (u) => SH_CZ + SH_R * Math.sin(SH_TH(u));
+const SH_SGN = Math.sign(SH_T1 - SH_T0);
+const SH_YAWU = (u) => { const th = SH_TH(u); return Math.atan2(-SH_SGN * Math.sin(th), SH_SGN * Math.cos(th)); }; // tangent heading — one continuous turn
 const SH_EXCH = [['SLEEP?', '7.2 HR · GOOD'], ['FATIGUE?', 'LOW · 18%'], ['MOOD?', 'BRIGHT']];
 const SH_REPLY_CAT = [3, 0, 3];
 const shClamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const shBoneRev = (bi, form, nB) => smooth(bi / nB * 0.62, bi / nB * 0.62 + 0.20, form);
 
-// fixed camera slightly left-of-center; world y=0 is the snow, +z toward the viewer
-function shCam(W, H, ox) {
-  const f = 1.5, pos = [0, 1.02, 3.9];
+// world y=0 is the snow, +z toward the viewer. Mobile mirrors DropIn's diMakeCam: focal keyed
+// off WIDTH (portrait H would blow the figure past the edges) and the baseline dropped lower.
+function shCam(W, H, ox, mob) {
+  const focal = mob ? W * 1.8 : H * 1.5;
+  const vpy = (mob ? 0.62 : 0.545) * H;
+  const pos = [0, 1.02, 3.9];
   const fwd = diNorm(diSub([0, 0.95, 0], pos));
   const right = diNorm(diCross(fwd, [0, 1, 0]));
   const up = diCross(right, fwd);
   return (p) => {
     const r = diSub(p, pos), z = diDot(r, fwd);
     if (z < 0.1) return null;
-    return [ox + diDot(r, right) / z * f * H, H * 0.545 - diDot(r, up) / z * f * H, z];
+    return [ox + diDot(r, right) / z * focal, vpy - diDot(r, up) / z * focal, z];
   };
 }
 
@@ -561,36 +567,6 @@ function shBubble(gctx, x, y, text, who, a, tailDX) {
   }
   gctx.fillText(text, bx + 8, by + 13.5);
   gctx.restore();
-}
-
-// compact 270° wellness dial
-function shDial(gctx, cx, cy, R, score, A, t) {
-  if (A <= 0.02) return;
-  const A0 = Math.PI * 0.75, A1 = Math.PI * 2.25;
-  gctx.lineCap = 'round';
-  gctx.strokeStyle = `rgba(${OV_EDGE},${(0.20 * A).toFixed(3)})`; gctx.lineWidth = 3;
-  gctx.beginPath(); gctx.arc(cx, cy, R, A0, A1); gctx.stroke();
-  const fe = A0 + (A1 - A0) * (score / 100);
-  gctx.strokeStyle = `rgba(${OV_INKB},${(0.85 * A).toFixed(3)})`;
-  gctx.beginPath(); gctx.arc(cx, cy, R, A0, fe); gctx.stroke();
-  gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * A).toFixed(3)})`;
-  gctx.beginPath(); gctx.arc(cx + Math.cos(fe) * R, cy + Math.sin(fe) * R, 2.6 + 0.4 * Math.sin(t * 3), 0, 7); gctx.fill();
-  gctx.font = '700 14px ui-monospace, Menlo, monospace';
-  const st = score.toFixed(1), sw = gctx.measureText(st).width;
-  gctx.fillStyle = `rgba(${OV_INKB},${(0.92 * A).toFixed(3)})`;
-  gctx.fillText(st, cx - sw / 2, cy + 5);
-  gctx.font = '700 6.5px ui-monospace, Menlo, monospace';
-  const lw = gctx.measureText('WELLNESS').width;
-  gctx.fillStyle = `rgba(${OV_EDGE},${(0.7 * A).toFixed(3)})`;
-  gctx.fillText('WELLNESS', cx - lw / 2, cy + R * 0.82);
-}
-
-function shScoreFloat(gctx, u, dx, dy, H, A) {
-  const fa = Math.min(smooth(0.40, 0.44, u), 1 - smooth(0.54, 0.60, u)) * A;
-  if (fa <= 0.01) return;
-  gctx.font = '700 11px ui-monospace, Menlo, monospace';
-  gctx.fillStyle = `rgba(${OV_CATS[4]},${fa.toFixed(3)})`;
-  gctx.fillText('+0.7', dx + H * 0.10, dy - H * 0.02 - smooth(0.40, 0.60, u) * 22);
 }
 
 class SlopeBackground extends Component {
@@ -1822,8 +1798,15 @@ class SlopeBackground extends Component {
     const et = eng.elapsed;
     const shp = this.shp;
     const mob = this.mob;
-    const ox = W * 0.5; // aim the recede at the corduroy vanishing point (screen center)
-    const cam = shCam(W, H, ox);
+    // desktop: aim the recede at the corduroy vanishing point (screen center).
+    // mobile: the goat has the frame to itself — follow it horizontally (like DropIn) so the
+    // wide arc stays on the narrow screen, keeping it mostly centered.
+    let ox = W * 0.5;
+    if (mob) {
+      const sp = shCam(W, H, 0, mob)([SH_X(u), 0, SH_Z(u)]);
+      ox = W * 0.5 - 0.78 * (sp ? sp[0] : 0);
+    }
+    const cam = shCam(W, H, ox, mob);
 
     // assembles quickly on entry, then disassembles (reveal runs in reverse) as it
     // recedes up-slope — the sheep dissolves into the distance well before the section exits
@@ -1839,14 +1822,13 @@ class SlopeBackground extends Component {
     const qa = Math.min(smooth(0.12, 0.19, u), 1 - smooth(0.28, 0.33, u));   // Florence's question
     const ra = Math.min(smooth(0.44, 0.50, u), 1 - smooth(0.66, 0.74, u));   // the readout, once caught
     const boost = Math.min(smooth(0.36, 0.40, u), 1 - smooth(0.50, 0.56, u));
-    const scoreT = smooth(0.38, 0.50, u);
     const ix = 0;
 
-    const px = SH_X(u), py = SH_Y(u), pz = SH_Z(u);
-    const J0 = shPoseSheep({ t: et, yaw: SH_YAW, trotPh: shp.ph, trotAmp: gaitOn * 0.13, reach, perk: Math.max(reach, qa), wag: Math.max(0.3 * form, ra) });
-    const J = {}; for (const k in J0) J[k] = diAdd(J0[k], [px, py, pz]);
+    const px = SH_X(u), pz = SH_Z(u);
+    const J0 = shPoseSheep({ t: et, yaw: SH_YAWU(u), trotPh: shp.ph, trotAmp: gaitOn * 0.13, reach, perk: Math.max(reach, qa), wag: Math.max(0.3 * form, ra) });
+    const J = {}; for (const k in J0) J[k] = diAdd(diMul(J0[k], SH_SCALE), [px, 0, pz]);
 
-    shGroundGlow(gctx, cam, H, form * A, px, py, pz);
+    shGroundGlow(gctx, cam, H, form * A, px, 0, pz);
     shDrawMesh(gctx, cam, shBuildMesh(SHEEP_BONES(J), { links: 26, dist: 0.22, extra: { count: 60, dist: 0.36, upto: 32 } }), 20, form, A);
     shDrawSites(gctx, cam, J, et, form, A, H, { [SH_REPLY_CAT[ix]]: boost });
 
@@ -1854,18 +1836,14 @@ class SlopeBackground extends Component {
     const attach = smooth(0.34, 0.46, u);
     const hd = J.headC;
     const orbW = [
-      diLp(px + 0.10, hd[0] + 0.04, attach),
-      diLp(py + 1.05 + 0.05 * Math.sin(et * 2.1), hd[1] + 0.40, attach),
+      diLp(px + 0.10, hd[0] + 0.06, attach),
+      diLp(1.70 + 0.05 * Math.sin(et * 2.1), hd[1] + 0.55, attach),
       diLp(pz - 0.80, hd[2] + 0.02, attach),
     ];
     const orbP = cam(orbW), headP = cam(hd);
     if (orbP) shOrb(gctx, orbP[0], orbP[1], et, form * A);
     if (orbP) shBubble(gctx, orbP[0] + 8, orbP[1] - 14, SH_EXCH[ix][0], 'f', qa * A, -6);
     if (headP) shBubble(gctx, headP[0] - 52, headP[1] - 30, SH_EXCH[ix][1], 'p', ra * A, 24);
-
-    const dx = mob ? W * 0.18 : W * 0.07, dy = mob ? H * 0.30 : H * 0.22;
-    shDial(gctx, dx, dy, H * 0.085, 76.4 + 0.7 * scoreT, form * A, et);
-    shScoreFloat(gctx, u, dx, dy, H, A);
   }
 
   drawLLM(t) {
