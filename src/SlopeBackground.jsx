@@ -2224,6 +2224,7 @@ class SlopeBackground extends Component {
                 <span ref={this.llmSubRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>Research</span>
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</p>
+              <a href="/gui-grounded-repair.pdf" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', color: '#28569e', textDecoration: 'none' }}>PAPER →</a>
             </div>
             </div>
           </section>
@@ -2238,6 +2239,7 @@ class SlopeBackground extends Component {
                 <span ref={this.dropSubRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Real-time mocap on consumer hardware&mdash;no $50k optical rigs, just an iPhone. A quaternion-based kinematic solver reconstructs rider kinematics from raw 100Hz IMU streams with sub-50ms latency, while a custom backpressure protocol sheds stale frames to keep every joint coherent. WebGL telemetry turns each run into actionable coaching.</p>
+              <a href="https://github.com/isaacau502/DropIn" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mono, fontSize: 13, letterSpacing: '0.2em', color: '#28569e', textDecoration: 'none' }}>GITHUB →</a>
             </div>
             </div>
           </section>
