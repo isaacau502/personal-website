@@ -6,19 +6,13 @@ import { adaptiveScale, placeInSky, skyToScreen, skyPanel, partingOffset, separa
 const mono = 'ui-monospace, monospace';
 
 // ---- mobile beat choreography ----
-// under MB_BP the copy/motif pairs can't sit side by side, so each beat serializes.
-// to keep the motif from reading as "patched on", the beat's TITLE persists: as the
-// body copy lifts out [MB_OUT0..MB_OUT1], the project name rises into a pinned header
-// [MB_HDR0..MB_HDR1] and the motif forms beneath it. the windows OVERLAP (motif starts
-// at MB_MOTIF0, before the copy is fully gone) so the frame is never empty and the
-// diagram materializes as a labeled panel, not an orphan.
+// under MB_BP the copy/motif pairs can't sit side by side. Rather than serialize
+// (copy scrubs, then hands the frame to the motif — which doubled the scroll per
+// beat), every beat now runs CONCURRENTLY: the body copy pins in the top ~45% of
+// the frame while the motif forms in the bottom band, both scrubbing off the same
+// section. See cGrow() for the shared formation curve.
 const MB_BP = 768;
-const MB_OUT0 = 0.38, MB_OUT1 = 0.56;
-const MB_HDR0 = 0.44, MB_HDR1 = 0.60;
-const MB_MOTIF0 = 0.50;
-// beats migrating to the concurrent choreography: copy pinned in the top band,
-// motif forming below it, both scrubbing together — no lift-out, no pinned title
-const MB_CONCURRENT = new Set(['tdk']);
+const MB_CONCURRENT = new Set(['tdk', 'ovis', 'llm', 'drop']);
 // sig-form anchor on mobile — high enough that the iOS keyboard never covers the input
 const MB_SIG_Y = 0.42;
 // desktop run-line nav: one stop per beat of the run. `frac` = where in the
@@ -34,14 +28,6 @@ const NAV_STOPS = [
   { label: 'SKY', frac: 0.72 },
   { label: 'BASE', frac: 0.5 },
 ];
-
-// name/sub anchor the diagram; kick echoes the section's mono lead-in
-const MB_TITLE = {
-  tdk: { kick: '01 · MAY 2026 – PRESENT · INTERNSHIP', name: 'TDK', sub: 'ML Intern' },
-  ovis: { kick: '02 · 2022 – 2026 · CO-FOUNDER', name: 'Ovis', sub: 'Medical Solutions' },
-  llm: { kick: '03 · RESEARCH', name: 'LLM', sub: 'Research' },
-  drop: { kick: '04 · 2026 · PERSONAL PROJECT', name: 'DropIn', sub: 'Motion Capture' },
-};
 
 // night-sky star chart: formation window per figure in _skyGrow space
 // (staggered, career order — matches PROJECT_CONSTELLATIONS). Placement is
@@ -349,7 +335,7 @@ function diMakeCam(u, W, H) {
   const fwd = diNorm(diSub(tgt, pos));
   const rgt = diNorm(diCross([0, 1, 0], fwd));
   const up = diCross(fwd, rgt);
-  const f = mob ? W * 2.2 : H * 2.0, cx = W * (mob ? 0.5 : 0.38), cy = H * (mob ? 0.5 : 0.52);
+  const f = mob ? W * 1.9 : H * 2.0, cx = W * (mob ? 0.5 : 0.38), cy = H * (mob ? 0.64 : 0.52);
   return (p) => {
     const q = diSub(p, pos);
     const z = diDot(q, fwd);
@@ -390,9 +376,6 @@ class SlopeBackground extends Component {
     this.dropRef = createRef();
     this.dropSubRef = createRef();
     this.hudRef = createRef();
-    this.hdrRef = createRef();
-    this.hdrKickRef = createRef();
-    this.hdrNameRef = createRef();
     // mob mirrors state.mob for per-frame reads (no re-render on the hot path);
     // state.mob drives the JSX that must re-render on a breakpoint flip
     this.state = { mob: typeof window !== 'undefined' && window.innerWidth < MB_BP };
@@ -568,9 +551,22 @@ class SlopeBackground extends Component {
     window.removeEventListener('resize', this.resize);
   }
 
-  // mobile: the motif only gets the scrub after the copy has left the frame
-  mGrow(grow) {
-    return this.mob ? Math.max(0, Math.min(1, (grow - MB_MOTIF0) / (1 - MB_MOTIF0))) : grow;
+  // mobile concurrent beats: the motif forms alongside the pinned copy across the
+  // whole dwell (small lead-in so it doesn't pop at section entry). Desktop unchanged.
+  cGrow(grow) {
+    return this.mob ? smooth(0.06, 0.96, grow) : grow;
+  }
+
+  // mobile: fade a bottom-band motif out as its section leaves, so it clears the
+  // frame before the next beat's copy scrolls up into the same band. Full while the
+  // section bottom sits low; gone by the time the bottom rises to mid-viewport.
+  exitFade(el) {
+    if (!this.mob || !el) return 1;
+    const r = el.getBoundingClientRect();
+    const H = this.H;
+    // matches the copy's own vis fade (scrubTall): gone by the time the section
+    // bottom reaches ~0.55H, full while it sits below the viewport fold
+    return Math.max(0, Math.min(1, (r.top + r.height - H * 0.55) / (H * 0.4)));
   }
 
   makeRidges() {
@@ -869,42 +865,11 @@ class SlopeBackground extends Component {
         // pinned copy: opacity tracks the section's own vis (solid through the
         // dwell, fading only at entry/exit) — the viewport-center proximity fade
         // would dim it the whole time since it never sits at frame center
-        const s = this.scrubTall(this.beatEls[beat]);
-        op = s.vis;
+        op = this.scrubTall(this.beatEls[beat]).vis;
         ty = 0;
-      } else if (this.mob && beat) {
-        // non-concurrent beats hand the frame from copy to motif: lift copy out mid-scrub
-        const out = smooth(MB_OUT0, MB_OUT1, this.scrubTall(this.beatEls[beat]).grow);
-        op *= 1 - out;
-        ty -= out * 50;
       }
       el.style.opacity = op.toFixed(3);
       el.style.transform = `translateY(${ty.toFixed(1)}px)`;
-    }
-
-    // ---- PERSISTENT BEAT TITLE (mobile) ----
-    // the project name the copy just showed rises into a pinned header and owns the
-    // motif forming below it, so the diagram never reads as detached
-    if (this.hdrRef.current) {
-      let best = 0, key = '';
-      if (this.mob && this.beatEls) {
-        for (const k in this.beatEls) {
-          if (MB_CONCURRENT.has(k)) continue; // concurrent beats keep their own copy on screen
-          const s = this.scrubTall(this.beatEls[k]);
-          const a = smooth(MB_HDR0, MB_HDR1, s.grow) * s.vis;
-          if (a > best) { best = a; key = k; }
-        }
-      }
-      const hdr = this.hdrRef.current;
-      hdr.style.opacity = best.toFixed(3);
-      // slight settle: title drifts up into place as it fades in
-      hdr.style.transform = `translateY(${((1 - best) * 12).toFixed(1)}px)`;
-      if (key && this._hdrKey !== key) {
-        this._hdrKey = key;
-        const tt = MB_TITLE[key];
-        this.hdrKickRef.current.textContent = tt.kick;
-        this.hdrNameRef.current.textContent = tt.sub ? `${tt.name} · ${tt.sub}` : tt.name;
-      }
     }
 
     // ---- SIGNATURE FORM (DOM overlay, not canvas) ----
@@ -1273,7 +1238,7 @@ class SlopeBackground extends Component {
       const s = this.scrubTall(this.approachEl);
       // concurrent beat: the tree forms alongside the pinned copy across the whole
       // dwell (small lead-in so it doesn't pop at section entry)
-      const grow = this.mob ? smooth(0.06, 0.96, s.grow) : s.grow, vis = s.vis;
+      const grow = this.cGrow(s.grow), vis = s.vis * this.exitFade(this.approachEl);
       if (vis > 0.002 && grow > 0.002) {
         // mobile: bottom band, clear of the copy pinned in the top ~45% of the frame;
         // height keyed off width so the tree stays square-ish, not stretched tall
@@ -1583,10 +1548,10 @@ class SlopeBackground extends Component {
     // with a lead-in as the section arrives — scrolling back unforms it
     const dwell = Math.max(r.height - H, 1);
     const lead = H * 0.45;
-    const grow = this.mGrow(Math.max(0, Math.min(1, (lead - r.top) / (dwell + lead))));
+    const grow = this.cGrow(Math.max(0, Math.min(1, (lead - r.top) / (dwell + lead))));
     const enter = Math.max(0, Math.min(1, (H * 0.85 - r.top) / (H * 0.35)));
     const exit = Math.max(0, Math.min(1, (r.top + r.height - H * 0.15) / (H * 0.35)));
-    const vis = Math.min(enter, exit);
+    const vis = Math.min(enter, exit) * this.exitFade(this.lipEl);
     if (vis <= 0.002 || grow <= 0.002) return;
     const A = vis;
 
@@ -1606,11 +1571,11 @@ class SlopeBackground extends Component {
     }
     const et = eng.elapsed;
 
-    // mobile: centered full-frame, seated low enough that the dial ring stays on the
-    // snow while the lip climbs the horizon behind it; fh capped by width for the ring
+    // mobile: seated in the bottom band, clear of the copy pinned in the top ~45%;
+    // fh capped by width so the dial ring never runs past the portrait edges
     const mob = this.mob;
-    const cx = mob ? W * 0.5 : W * 0.27, cy = mob ? H * 0.58 : H * 0.50;
-    const fh = mob ? Math.min(H * 0.40, W * 0.60) : H * 0.68;
+    const cx = mob ? W * 0.5 : W * 0.27, cy = mob ? H * 0.66 : H * 0.50;
+    const fh = mob ? Math.min(H * 0.34, W * 0.56) : H * 0.68;
     const breathe = (id) => {
       const b = Math.sin(et * 1.4) * 0.004;
       if (id === 'chest' || id === 'heart') return -b * 1.6;
@@ -1823,13 +1788,13 @@ class SlopeBackground extends Component {
     const W = this.W, H = this.H;
     const mob = this.mob;
     const s = this.scrubTall(this.llmEl);
-    const grow = this.mGrow(s.grow), vis = s.vis;
+    const grow = this.cGrow(s.grow), vis = s.vis * this.exitFade(this.llmEl);
     if (vis <= 0.002 || grow <= 0.002) return;
     const A = vis;
 
-    // mobile: near-full-width, seated low so the wireframe reads under the pinned title
-    const gx = W * (mob ? 0.06 : 0.52), gy = H * (mob ? 0.30 : 0.16);
-    const gw = W * (mob ? 0.88 : 0.42), gh = H * (mob ? 0.52 : 0.66);
+    // mobile: near-full-width, seated in the bottom band clear of the pinned copy
+    const gx = W * (mob ? 0.06 : 0.52), gy = H * (mob ? 0.55 : 0.16);
+    const gw = W * (mob ? 0.88 : 0.42), gh = H * (mob ? 0.37 : 0.66);
     const fr = smooth(0, 0.06, grow);
     gctx.strokeStyle = `rgba(${OV_EDGE},${(0.22 * fr * A).toFixed(3)})`;
     gctx.lineWidth = 1;
@@ -1992,10 +1957,12 @@ class SlopeBackground extends Component {
     const W = this.W, H = this.H;
     const { grow, vis } = this.scrubTall(this.dropEl);
     if (vis <= 0.002 || grow <= 0.002) return;
-    const A = vis;
-    // text reads alone for the first stretch, then the rider forms; on mobile that
-    // handoff is the shared MB_MOTIF0 point and nothing (flecks, trail) draws before it
-    const u = smooth(this.mob ? MB_MOTIF0 + 0.02 : DI_DELAY, 1, grow);
+    const A = vis * this.exitFade(this.dropEl);
+    if (A <= 0.002) return;
+    // mobile: the run scrubs concurrently with the pinned copy (early lead-in) and
+    // stretches past the section end (b > 1) so the rider stays on screen through the
+    // dwell instead of racing to the exit; desktop keeps the copy-only DI_DELAY lead
+    const u = smooth(this.mob ? 0.06 : DI_DELAY, this.mob ? 1.25 : 1, grow);
     if (this.mob && u <= 0.001) return;
     const proj = diMakeCam(u, W, H);
     const dist = DI_SPEED * u;
@@ -2118,7 +2085,9 @@ class SlopeBackground extends Component {
       const edgeDeg = Math.round(Math.abs(diLean(u)) * 57.3);
       const airS = (u > DI_AIR0 && u < DI_AIR1) ? ((u - DI_AIR0) * DI_RUN_S).toFixed(2)
                  : (u >= DI_AIR1 ? ((DI_AIR1 - DI_AIR0) * DI_RUN_S).toFixed(2) : '0.00');
-      gctx.fillText(`IMU 100HZ · EDGE ${String(edgeDeg).padStart(2, ' ')}° · AIR ${airS}s`, W * 0.06, H * (this.mob ? 0.24 : 0.14));
+      // mobile: drop the readout into the bottom band (just above the rider run) so
+      // it clears the copy pinned in the top ~48% of the frame
+      gctx.fillText(`IMU 100HZ · EDGE ${String(edgeDeg).padStart(2, ' ')}° · AIR ${airS}s`, W * 0.06, H * (this.mob ? 0.52 : 0.14));
     }
   }
 
@@ -2264,23 +2233,25 @@ class SlopeBackground extends Component {
                 <span ref={this.tdkRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>TDK</span>
                 <span ref={this.mlRef} style={{ display: 'block', width: 'fit-content', fontSize: mob ? 'clamp(26px, 8vw, 40px)' : HEADLINE_SIZE, whiteSpace: 'nowrap' }}>ML Intern</span>
               </h2>
-              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>{mob
-                ? <>Algorithms team — SensorFlow, an evolutionary TinyML search shipping sensors inside your iPhone.</>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
+                ? <>SensorFlow — evolutionary TinyML search shipping sensors inside your iPhone.</>
                 : <>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Latest run: a production crash-detection model 35% lighter at +1.3% rare-event F1.</>}</p>
             </div>
             </div>
           </section>
 
           {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the Ovis constellation formation */}
-          <section id="projects" data-screen-label="The lip" style={{ height: mob ? '300vh' : '220vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: mob ? '0 7vw' : '0 8vw' }}>
-              <div data-reveal="1" data-beat="ovis" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
+          <section id="projects" data-screen-label="The lip" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: mob ? 'flex-start' : 'flex-end', padding: mob ? '14vh 7vw 0' : '0 8vw' }}>
+              <div data-reveal="1" data-beat="ovis" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
                 <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>02 · 2022 – 2026 · CO-FOUNDER</div>
                 <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: mob ? 'flex-start' : 'flex-end' }}>
                   <span ref={this.ovisRef} style={{ fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>OVIS</span>
-                  <span ref={this.medRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Medical Solutions</span>
+                  <span ref={this.medRef} style={{ fontSize: mob ? 'clamp(18px, 5.5vw, 30px)' : 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Medical Solutions</span>
                 </h2>
-                <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Piloted with oncologists at HKU.</p>
+                <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
+                  ? <>Florence, our AI nurse, scores a daily cancer-patient check-in and flags trouble before the ER. Piloted at HKU.</>
+                  : <>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Piloted with oncologists at HKU.</>}</p>
                 <a href="https://app.ovismedical.com" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: mob ? 'flex-start' : 'flex-end' }}>TRY THE APP<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
               </div>
             </div>
@@ -2289,31 +2260,39 @@ class SlopeBackground extends Component {
           {/* spacer — lets the Ovis constellation scroll off before LLM copy arrives */}
           <div style={{ height: '60vh' }} />
 
-          {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the grounded-repair sweep */}
-          <section data-screen-label="LLM research" style={{ height: mob ? '300vh' : '220vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: mob ? '0 7vw' : '0 8vw' }}>
-            <div data-reveal="1" data-beat="llm" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, willChange: 'transform, opacity' }}>
+          {/* 220vh (200vh mobile) + sticky copy: the extra scroll scrubs the grounded-repair sweep */}
+          <section data-screen-label="LLM research" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: 'flex-start', padding: mob ? '14vh 7vw 0' : '0 8vw' }}>
+            <div data-reveal="1" data-beat="llm" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14, willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>03 · RESEARCH</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
                 <span ref={this.llmRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>LLM</span>
-                <span ref={this.llmSubRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>Research</span>
+                <span ref={this.llmSubRef} style={{ display: 'block', width: 'fit-content', fontSize: mob ? 'clamp(28px, 8.5vw, 44px)' : HEADLINE_SIZE, whiteSpace: 'nowrap' }}>Research</span>
               </h2>
-              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</p>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
+                ? <>Frozen GUI-grounding models lifted VLM code-repair fidelity +29% on Angular, zero-shot. An LLM judge distilled 2M+ rows to 50k gold.</>
+                : <>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</>}</p>
               <a href="/gui-grounded-repair.pdf" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: 'flex-start' }}>READ THE PAPER<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
             </div>
             </div>
           </section>
 
-          {/* 340vh + sticky copy: the extra scroll scrubs the full ollie run */}
-          <section data-screen-label="DropIn" style={{ height: '340vh', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: mob ? '0 7vw' : '0 8vw' }}>
-            <div data-reveal="1" data-beat="drop" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
+          {/* mobile: brief spacer so the heavy LLM detection panel fully clears the frame
+              before the DropIn copy scrolls up (desktop beats sit side by side, no gap needed) */}
+          {mob && <div style={{ height: '45vh' }} />}
+
+          {/* 340vh (240vh mobile) + sticky copy: the extra scroll scrubs the full ollie run */}
+          <section data-screen-label="DropIn" style={{ height: mob ? '240vh' : '340vh', position: 'relative' }}>
+            <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: mob ? 'flex-start' : 'flex-end', padding: mob ? '14vh 7vw 0' : '0 8vw' }}>
+            <div data-reveal="1" data-beat="drop" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>04 · 2026 · PERSONAL PROJECT</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: mob ? 'flex-start' : 'flex-end' }}>
                 <span ref={this.dropRef} style={{ fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>DropIn</span>
-                <span ref={this.dropSubRef} style={{ fontSize: 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
+                <span ref={this.dropSubRef} style={{ fontSize: mob ? 'clamp(18px, 5.5vw, 30px)' : 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Motion Capture</span>
               </h2>
-              <p style={{ margin: 0, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Real-time mocap on consumer hardware&mdash;no $50k optical rigs, just an iPhone. A quaternion-based kinematic solver reconstructs rider kinematics from raw 100Hz IMU streams with sub-50ms latency, while a custom backpressure protocol sheds stale frames to keep every joint coherent. WebGL telemetry turns each run into actionable coaching.</p>
+              <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
+                ? <>Real-time mocap from just an iPhone — a quaternion solver reconstructs rider motion from 100Hz IMU at sub-50ms latency.</>
+                : <>Real-time mocap on consumer hardware&mdash;no $50k optical rigs, just an iPhone. A quaternion-based kinematic solver reconstructs rider kinematics from raw 100Hz IMU streams with sub-50ms latency, while a custom backpressure protocol sheds stale frames to keep every joint coherent. WebGL telemetry turns each run into actionable coaching.</>}</p>
               <a href="https://github.com/isaacau502/DropIn" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: mob ? 'flex-start' : 'flex-end' }}>SEE THE CODE<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
             </div>
             </div>
@@ -2326,8 +2305,10 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          {/* 640vh: the extra 140vh over the original 500vh is the night-sky signature dwell */}
-          <section data-screen-label="Airborne" style={{ height: '640vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '260vh' }}>
+          {/* 640vh: the extra 140vh over the original 500vh is the night-sky signature dwell.
+              mobile trims to 460vh with paddingTop scaled by the same ratio (~0.41) so the
+              sky's form → hold → invite pacing is preserved, just with less thumb mileage */}
+          <section data-screen-label="Airborne" style={{ height: mob ? '460vh' : '640vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: mob ? '187vh' : '260vh' }}>
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center', padding: '0 6vw', willChange: 'transform, opacity' }}>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#dbe7f4' }}>— WHERE I LIKE TO WORK —</div>
               <h2 style={{ margin: 0, fontSize: 'clamp(28px, 4.2vw, 56px)', lineHeight: 1.05, textTransform: 'uppercase', color: '#f4f8fd' }}>Software that touches<br />the physical world</h2>
@@ -2530,12 +2511,6 @@ class SlopeBackground extends Component {
         <div ref={this.hudRef} style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
           <span ref={this.spdRef}>SPD 00 KM/H</span>
           <span ref={this.distRef}>LIP 400 M</span>
-        </div>
-
-        {/* mobile: the beat's title persists here and anchors the motif forming below it; driven from loop */}
-        <div ref={this.hdrRef} style={{ position: 'fixed', top: 62, left: 0, right: 0, zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, opacity: 0, pointerEvents: 'none' }}>
-          <span ref={this.hdrKickRef} style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.32em', color: '#4a5c72' }} />
-          <span ref={this.hdrNameRef} style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: 22, letterSpacing: '0.01em', textTransform: 'uppercase', color: '#17222f' }} />
         </div>
       </>
     );
