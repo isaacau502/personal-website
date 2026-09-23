@@ -11,6 +11,7 @@
 // paid LLM calls; all moderation precedes persistence.
 
 import { validateDescription, validateConstellation } from '../../../src/constellation/validate.js';
+import { denylistHit } from './denylist.js';
 
 // deps: {
 //   verifyTurnstile(token, ip) -> bool        (resolve true when not configured)
@@ -43,6 +44,13 @@ export function createSignPipeline(deps) {
     // 4. Blocklist — one KV read; a cheap tripwire against lazy resubmission
     const hash = await sha256Hex(desc.value.toLowerCase());
     if (await deps.kv.get(`blocklist:${hash}`)) {
+      return { ok: false, status: 400, error: 'rejected' };
+    }
+
+    // 4b. Keyword denylist — free, deterministic, no I/O. Catches known-bad
+    // terms (atrocities, hate symbols, coded refs) before any paid LLM call;
+    // the generation `safe` flag is the semantic backstop for the rest.
+    if (denylistHit(desc.value)) {
       return { ok: false, status: 400, error: 'rejected' };
     }
 

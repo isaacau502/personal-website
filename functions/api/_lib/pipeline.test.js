@@ -84,6 +84,29 @@ describe('sign pipeline — free checks run before paid calls', () => {
     expect(deps.generate).not.toHaveBeenCalled();
   });
 
+  it('denylisted term → 400 rejected, no LLM call (free keyword tripwire)', async () => {
+    const deps = makeDeps();
+    const result = await createSignPipeline(deps)({ ...INPUT, description: 'the twin towers' });
+    expect(result).toMatchObject({ ok: false, status: 400, error: 'rejected' });
+    expect(deps.generate).not.toHaveBeenCalled();
+  });
+
+  it('denylist tolerates punctuation/spacing ("9/11") and honors word boundaries', async () => {
+    const deps = makeDeps();
+    const hit = await createSignPipeline(deps)({ ...INPUT, description: 'a 9/11 memorial' });
+    expect(hit).toMatchObject({ ok: false, error: 'rejected' });
+    // "isis" must NOT fire inside "crisis" — innocent word passes to generation
+    const miss = await createSignPipeline(makeDeps())({ ...INPUT, description: 'a crisis' });
+    expect(miss.ok).toBe(true);
+  });
+
+  it('vendored profanity is caught before any LLM call', async () => {
+    const deps = makeDeps();
+    const result = await createSignPipeline(deps)({ ...INPUT, description: 'a shit sandwich' });
+    expect(result).toMatchObject({ ok: false, status: 400, error: 'rejected' });
+    expect(deps.generate).not.toHaveBeenCalled();
+  });
+
   it('spend ceiling hit → 503 sky-is-full, no LLM call, no persistence', async () => {
     const deps = makeDeps({ spendCap: 10, kv: makeKv({ 'spend:2026-07': '10' }) });
     const result = await createSignPipeline(deps)(INPUT);

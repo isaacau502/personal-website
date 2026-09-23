@@ -34,8 +34,10 @@ export function makeVisionCheck(env) {
       prompt:
         'This is a connect-the-dots line drawing about to be published on a public website. ' +
         'Describe its shape to yourself, then answer with exactly one word: ' +
-        'FLAGGED if the shape reads as lewd, phallic, a hateful symbol, or otherwise offensive; ' +
-        'OK otherwise. Innocent figures (animals, objects, people doing ordinary things) are OK.',
+        'FLAGGED if the shape reads as lewd or phallic, sexual or a coded sexual reference / ' +
+        'dogwhistle (e.g. an upside-down pineapple), a hateful symbol (e.g. swastika), ' +
+        'a weapon or violent/gory imagery, or otherwise offensive; ' +
+        'OK otherwise. Innocent figures (animals, objects, buildings, people doing ordinary things) are OK.',
       image: [...new Uint8Array(pngBytes)],
       max_tokens: 16,
     });

@@ -29,7 +29,7 @@ const VISION_SCHEMA = {
   additionalProperties: false,
   required: ['flagged'],
   properties: {
-    flagged: { type: 'boolean', description: 'true if the drawing is lewd, phallic, hateful (e.g. swastika), or otherwise offensive' },
+    flagged: { type: 'boolean', description: 'true if the drawing is lewd, phallic, a hateful symbol (e.g. swastika), violent, or otherwise offensive' },
   },
 };
 
@@ -46,7 +46,7 @@ export function makeVisionCheck(env) {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/png', data } },
-          { type: 'text', text: 'This is a connect-the-dots line drawing about to be published on a public website. Describe its shape to yourself, then flag it if the shape reads as lewd, phallic, hateful symbols, or otherwise offensive. Innocent figures (animals, objects, people doing ordinary things) are not flagged.' },
+          { type: 'text', text: 'This is a connect-the-dots line drawing about to be published on a public website. Describe its shape to yourself, then flag it if the shape reads as lewd or phallic, sexual or a coded sexual reference / dogwhistle (e.g. an upside-down pineapple), a hateful symbol (e.g. swastika), a weapon or violent/gory imagery, or otherwise offensive. Innocent figures (animals, objects, buildings, people doing ordinary things) are not flagged.' },
         ],
       }],
     });
