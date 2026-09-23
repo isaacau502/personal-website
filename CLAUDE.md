@@ -124,3 +124,14 @@ cap; (3) KV/D1 persistence + a `safe` moderation flag from the same LLM call; (4
 render into `SlopeBackground`'s night-sky section. A zero-server procedural fallback (hash desc → seed)
 is the degraded mode when the budget cap or rate limit trips. Can't ship an API key in a static Vite
 site — the backend is the one hard requirement.
+
+## Design Context
+
+Strategic design context lives in `PRODUCT.md` (read it before design work). In short:
+
+- **Register:** brand — this is a portfolio; the design *is* the product. **Platform:** web.
+- **Audience:** anyone evaluating Isaac as an engineer (recruiters, founders, peers). Craft is the universal hook.
+- **Primary CTA:** email Isaac. **Secondary:** add a constellation to the shared sky.
+- **Personality:** kinetic (the snowboard) + curious (the stars), on a base of exacting craft. Target feeling: exhilaration + technical awe.
+- **Design principles:** show don't tell · the medium is the message · motion is meaning · determinism & precision · one constellation grammar.
+- **Anti-references:** generic dev-portfolio template; corporate SaaS landing.

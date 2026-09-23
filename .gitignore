@@ -29,3 +29,11 @@ coverage/
 .env
 .wrangler/
 .claude/
+
+# generated 3D-world experiment assets (blockout GLBs, Higgsfield clips/stills) — reproducible, heavy
+marble/
+nightrun/
+# local agent-skill installs / design-tool caches
+.agents/
+.impeccable/
+skills-lock.json
