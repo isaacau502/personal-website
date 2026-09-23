@@ -2291,34 +2291,34 @@ class SlopeBackground extends Component {
             </div>
           </section>
 
-          {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the lineage-tree formation */}
-          <section id="work" data-screen-label="The approach" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
+          {/* 220vh (200vh mobile) + sticky copy: the extra scroll scrubs the lineage-tree formation */}
+          <section data-screen-label="The approach" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
             <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: 'flex-start', padding: mob ? '14vh 7vw 0' : '0 8vw' }}>
             <div data-reveal="1" data-beat="tdk" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14, willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>01 · MAY 2026 – PRESENT · INTERNSHIP</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>01 · MAY – AUG 2026 · INTERNSHIP</div>
               <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase' }}>
                 <span ref={this.tdkRef} style={{ display: 'block', width: 'fit-content', fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>TDK</span>
                 <span ref={this.mlRef} style={{ display: 'block', width: 'fit-content', fontSize: mob ? 'clamp(26px, 8vw, 40px)' : HEADLINE_SIZE, whiteSpace: 'nowrap' }}>ML Intern</span>
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
                 ? <>SensorFlow — evolutionary TinyML search shipping sensors inside your iPhone.</>
-                : <>Algorithms team — SensorFlow, a Pareto-optimal TinyML search built on evolutionary algorithms, modeled on DeepMind&rsquo;s AlphaEvolve. Ships inside sensors that supply Apple. Latest run: a production crash-detection model 35% lighter at +1.3% rare-event F1.</>}</p>
+                : <>Algorithms team — SensorFlow, an LLM-guided evolutionary search agent modeled on DeepMind&rsquo;s AlphaEvolve that Pareto-optimizes TinyML models. Ships inside sensors that supply Apple. Cut a production signal-reconstruction algorithm&rsquo;s latency ~98% and surfaced a wearable crash detector at half the memory, within 0.8 pt of baseline accuracy.</>}</p>
             </div>
             </div>
           </section>
 
-          {/* 220vh (300vh mobile) + sticky copy: the extra scroll scrubs the Ovis constellation formation */}
-          <section id="projects" data-screen-label="The lip" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
+          {/* 220vh (200vh mobile) + sticky copy: the extra scroll scrubs the Ovis companion run */}
+          <section data-screen-label="The lip" style={{ height: mob ? '200vh' : '220vh', position: 'relative' }}>
             <div style={{ position: 'sticky', top: 0, height: '100vh', display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: mob ? 'flex-start' : 'flex-end', padding: mob ? '14vh 7vw 0' : '0 8vw' }}>
               <div data-reveal="1" data-beat="ovis" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14, textAlign: mob ? 'left' : 'right', willChange: 'transform, opacity' }}>
-                <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>02 · 2022 – 2026 · CO-FOUNDER</div>
+                <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#4a5c72' }}>02 · 2024 – 2026 · CO-FOUNDER</div>
                 <h2 style={{ margin: 0, lineHeight: 0.95, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: mob ? 'flex-start' : 'flex-end' }}>
                   <span ref={this.ovisRef} style={{ fontSize: HEADLINE_SIZE, whiteSpace: 'nowrap' }}>OVIS</span>
                   <span ref={this.medRef} style={{ fontSize: mob ? 'clamp(18px, 5.5vw, 30px)' : 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Medical Solutions</span>
                 </h2>
                 <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
                   ? <>Florence, our AI nurse, scores a daily cancer-patient check-in and flags trouble before the ER. Piloted at HKU.</>
-                  : <>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Piloted with oncologists at HKU.</>}</p>
+                  : <>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Raised $100k in SAFE funding and led a 5-person team, piloting with oncologists at HKU.</>}</p>
                 <a href="https://app.ovismedical.com" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: mob ? 'flex-start' : 'flex-end' }}>TRY THE APP<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
               </div>
             </div>
@@ -2418,10 +2418,10 @@ class SlopeBackground extends Component {
               <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: 680 }}>
                 <div style={{ width: 48, height: 1.5, background: '#c8d4e0' }} />
                 {[
-                  ['LANGUAGES', 'Python · Go · C/C++ · TypeScript · Swift'],
-                  ['ML / AI', 'PyTorch · LLMs / VLMs · LoRA · TinyML'],
-                  ['SYSTEMS', 'React · WebGL · Real-time / IMU'],
-                  ['INFRA', 'AWS · Azure · Docker'],
+                  ['LANGUAGES', 'Python · Go · C/C++ · SQL · Swift'],
+                  ['ML / AI', 'PyTorch · Hugging Face · LoRA · LLM-as-a-judge'],
+                  ['SYSTEMS', 'FastAPI · PostgreSQL · Real-time / IMU'],
+                  ['INFRA', 'AWS Bedrock · Lambda · S3 · Docker'],
                 ].map(([label, items]) => (
                   <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
                     <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.4em', color: '#4a5c72', minWidth: 92, textAlign: 'right' }}>{label}</span>

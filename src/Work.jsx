@@ -4,7 +4,7 @@ import { drawConstellation, SKY_PALETTE } from './constellation/draw.js';
 
 // The professional reference page at /work — a STAR CATALOG. Every project is
 // a constellation in the site's own {stars, edges} grammar: the run's flagship
-// beats (Ovis, GUI-Repair=LLM, DropIn) reuse their exact hand-laid figures from
+// beats (TDK, Ovis, GUI-Repair=LLM, DropIn) reuse their exact hand-laid figures from
 // projects.js; the rest are charted here in the same vocabulary. The page reads
 // as a celestial almanac — a scannable chart, not a card grid — tying /work
 // literally to the site's thesis. Theme-aware (dark = night chart, light =
@@ -13,6 +13,7 @@ import { drawConstellation, SKY_PALETTE } from './constellation/draw.js';
 // ---- figures ----
 // shared with the run (identical geometry — same star every place they appear)
 const fig = (n) => PROJECT_CONSTELLATIONS.find((f) => f.name === n);
+const TDK = fig('tdk');
 const OVIS = fig('ovis');
 const LLM = fig('llm research');
 const DROPIN = fig('dropin');
@@ -81,13 +82,16 @@ const MARK = { ship: '●', res: '○', sys: '◇', wip: '◌' };
 
 const HERO = {
   fig: OVIS, kind: 'ship', tag: 'PILOTED', name: 'Ovis Medical',
-  ctx: 'Co-founder · Tech Lead — 2022–2026',
-  desc: 'A daily AI voice between cancer patients and their care team — check-ins, symptom triage, and a wellness signal the clinic can act on.',
+  ctx: 'Co-founder · Tech Lead — 2024–2026',
+  desc: 'A daily AI voice between cancer patients and their care team — check-ins, symptom triage, and a wellness signal the clinic can act on. $100k SAFE raised; 5-person team.',
   stat: 'Clinical pilot', read: 'oncology · HKU', stack: 'LLMs · TTS · React · AWS',
   links: [{ t: 'TRY IT', href: 'https://app.ovismedical.com' }],
 };
 
 const CHARTED = [
+  { fig: TDK, kind: 'ship', tag: 'INTERNSHIP', name: 'TDK', ctx: 'ML Intern · Pittsburgh — 2026',
+    desc: 'SensorFlow: an LLM-guided evolutionary search agent that Pareto-optimizes TinyML models for production sensors.',
+    stat: '~98%', read: 'lower latency · production signal reconstruction', stack: 'LLMs · AWS Bedrock · Lambda', links: [] },
   { fig: RICE, kind: 'ship', tag: 'INTERNSHIP', name: 'Rice Robotics', ctx: 'SWE Intern · Hong Kong — 2024',
     desc: 'Azure OpenAI autonomy for an embodied robot — perception to motion, in real time.',
     stat: '3.5×', read: 'faster round-trip · 10s → 3s', stack: 'Azure OpenAI · Multimodal', links: [] },
@@ -95,7 +99,7 @@ const CHARTED = [
     desc: 'Frozen GUI-grounding models as zero-shot scaffolding for VLM code repair.',
     stat: '+29%', read: 'visual fidelity · p<0.01', stack: 'VLMs · Qwen2.5-VL',
     links: [{ t: 'PAPER', href: '/gui-grounded-repair.pdf' }, { t: 'CODE', href: 'https://github.com/isaacau502/GUI-grounded-gen' }] },
-  { fig: CURATION, kind: 'res', tag: 'RESEARCH', name: 'Clinical Data Curation', ctx: 'LLM-Judge — 2026',
+  { fig: CURATION, kind: 'res', tag: 'RESEARCH', name: 'Clinical Data Curation', ctx: 'with Prof. Bryan Wilder — 2025',
     desc: 'An LLM judge distills 2M+ clinical entries into 50k gold rows for fine-tuning.',
     stat: '+15%', read: 'medical reasoning', stack: 'LLMs · LoRA SFT · PyTorch', links: [] },
   { fig: KV, kind: 'sys', tag: 'SYSTEMS', name: 'Distributed KV Store', ctx: 'CMU 15-440 — 2025',
