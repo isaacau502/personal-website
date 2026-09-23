@@ -75,6 +75,33 @@ const GSD = { // a checkmark, fed by chunked tasks
   edges: [['s0', 's1'], ['s1', 's2'], ['s3', 's0'], ['s4', 's0']],
 };
 
+const SIDELIGHT = { // a sign held up in the screen's top corner — one line of big text
+  stars: [
+    { id: 's0', x: 0.06, y: 0.12, size: 0.7 }, { id: 's1', x: 0.94, y: 0.12, size: 0.8 }, // screen
+    { id: 's2', x: 0.94, y: 0.88, size: 0.7 }, { id: 's3', x: 0.06, y: 0.88, size: 0.7 },
+    { id: 's4', x: 0.50, y: 0.20, size: 0.8 }, { id: 's5', x: 0.86, y: 0.20, size: 1.2 }, // panel, anchored top-right
+    { id: 's6', x: 0.86, y: 0.52, size: 0.8 }, { id: 's7', x: 0.50, y: 0.52, size: 0.8 },
+    { id: 's8', x: 0.50, y: 0.36, size: 1.0 }, { id: 's9', x: 0.86, y: 0.36, size: 1.0 }, // the line of text
+  ],
+  edges: [
+    ['s0', 's1'], ['s1', 's2'], ['s2', 's3'], ['s3', 's0'],
+    ['s4', 's5'], ['s5', 's9'], ['s9', 's6'], ['s6', 's7'], ['s7', 's8'], ['s8', 's4'],
+    ['s8', 's9'], ['s1', 's5'],
+  ],
+};
+const CMDREMINDER = { // the ⌘ glyph itself: four square loops joined by the crossing strokes
+  stars: [
+    { id: 's0', x: 0.36, y: 0.14, size: 0.8 }, { id: 's1', x: 0.14, y: 0.14, size: 1.1 }, { id: 's2', x: 0.14, y: 0.36, size: 0.8 }, // top-left loop
+    { id: 's3', x: 0.64, y: 0.14, size: 0.8 }, { id: 's4', x: 0.86, y: 0.14, size: 1.1 }, { id: 's5', x: 0.86, y: 0.36, size: 0.8 }, // top-right
+    { id: 's6', x: 0.64, y: 0.86, size: 0.8 }, { id: 's7', x: 0.86, y: 0.86, size: 1.1 }, { id: 's8', x: 0.86, y: 0.64, size: 0.8 }, // bottom-right
+    { id: 's9', x: 0.36, y: 0.86, size: 0.8 }, { id: 's10', x: 0.14, y: 0.86, size: 1.1 }, { id: 's11', x: 0.14, y: 0.64, size: 0.8 }, // bottom-left
+  ],
+  edges: [
+    ['s0', 's1'], ['s1', 's2'], ['s3', 's4'], ['s4', 's5'], ['s6', 's7'], ['s7', 's8'], ['s9', 's10'], ['s10', 's11'], // loops
+    ['s0', 's9'], ['s3', 's6'], ['s2', 's5'], ['s11', 's8'], // strokes: two verticals, two horizontals
+  ],
+};
+
 // ---- catalog data ----
 // kind drives the FORM marker (status by shape, never a second accent hue):
 // ● ship · ○ research · ◇ systems · ◌ still forming
@@ -109,6 +136,14 @@ const CHARTED = [
     desc: 'Real-time mocap from an iPhone — no $50k optical rig.',
     stat: '<50ms', read: 'latency @ 100Hz IMU', stack: 'Swift · IMU · WebGL',
     links: [{ t: 'CODE', href: 'https://github.com/isaacau502/DropIn' }] },
+  { fig: CMDREMINDER, kind: 'ship', tag: 'MACOS', name: 'CmdReminder', ctx: 'Personal — 2026',
+    desc: 'Retrains Windows-to-Mac switchers instead of remapping: slip on Ctrl+C and a quiet popup says ⌘C.',
+    stat: '⌘C', read: 'listen-only event tap · never remaps', stack: 'Swift · CGEventTap · AppKit',
+    links: [{ t: 'DOWNLOAD', href: 'https://github.com/isaacau502/CmdReminder/releases/latest' }, { t: 'CODE', href: 'https://github.com/isaacau502/CmdReminder' }] },
+  { fig: SIDELIGHT, kind: 'ship', tag: 'MACOS', name: 'Sidelight', ctx: 'Personal — 2026',
+    desc: 'A menu-bar sign for your seat neighbor: hotkey, type, big text in the top corner, Esc and it’s gone.',
+    stat: '⌥ Space', read: 'away notes paint onto the lock screen', stack: 'Swift · AppKit · Menu bar',
+    links: [{ t: 'CODE', href: 'https://github.com/isaacau502/sidelight' }] },
 ];
 
 const FORMING = [
