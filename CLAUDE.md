@@ -1,8 +1,11 @@
 # CLAUDE.md
 
-Personal portfolio site for **Isaac Au** (Software / AI-ML engineer, CMU). A single-page,
-scroll-driven canvas experience: the visitor "rides" a ski/snowboard run down a slope, and each
-project beat is revealed as an animated constellation drawn on canvas as they scroll.
+Personal portfolio site for **Isaac Au** (Software / AI-ML engineer, CMU). Two routes:
+- `/` — **the run**: a single-page, scroll-driven canvas experience. The visitor "rides" a ski/snowboard
+  run down a slope, each project beat is revealed as an animated motif as they scroll, and the run ends
+  in a **shared night sky** where visitors add their own constellation.
+- `/work` — **the star catalog**: a plain, scannable reference page listing every project as a
+  constellation plate (`src/Work.jsx`). Theme-aware, respects reduced motion.
 
 Live intent: `https://isaacau.com`. Built with Claude Code + Claude Design (designs originate from
 the claude.ai/design "Carving slope animation" project, pulled in via DesignSync).
@@ -14,15 +17,29 @@ the claude.ai/design "Carving slope animation" project, pulled in via DesignSync
 - `npm run build` — production build to `dist/`
 - `npm run preview` — serve the built bundle
 - `npm run lint` — oxlint
+- `npm test` — vitest (`src/constellation/*.test.js`, `functions/api/_lib/pipeline.test.js`)
+- Deploy: this repo is a git-linked **Cloudflare Worker** (`wrangler.jsonc`). Pushing `main` builds and
+  deploys the live site, so never push without an explicit go-ahead.
 - Font: **Archivo Black** (Google Fonts, loaded in `index.html`); body copy uses a UI monospace stack
   (the `mono` constant in `SlopeBackground.jsx`).
 
 ## Architecture — read this before editing
 
-**Effectively the entire site is one file: `src/SlopeBackground.jsx` (~1730 lines).**
-`App.jsx` renders only `<SlopeBackground />`; `main.jsx` is the standard React root; `index.css` is
-tiny (body reset, `scroll-behavior: smooth`, the `cueDrop` scroll-cue keyframe). There is no router,
-no component library, no CSS framework — all styling is inline style objects.
+**The run is effectively one file: `src/SlopeBackground.jsx` (~2600 lines).**
+`App.jsx` does a path split (`/work` → `<Work />`, everything else → `<SlopeBackground />`); links
+between the two are plain `<a href>` full-page loads, and the Worker's SPA fallback serves
+`index.html` for `/work`. `main.jsx` is the standard React root; `index.css` is tiny (body reset,
+`scroll-behavior: smooth`, the `cueDrop` scroll-cue keyframe). No router library, no component
+library, no CSS framework — the run uses inline style objects, `/work` uses one scoped `<style>` block.
+
+Shared constellation code lives in `src/constellation/` (all pure, all tested):
+- `draw.js` — `drawConstellation()`, the one star/edge/glow renderer (night sky, `/work` plates)
+- `projects.js` — the four hand-laid project figures (TDK, Ovis, LLM, DropIn) + their sky placement
+- `sky.js` — sky-space coordinates, blue-noise placement, planisphere lean, parting around the form
+- `validate.js` — normalizes/rejects LLM-generated constellations (used by the Worker too)
+
+Note that `window.scrollTo` inherits `scroll-behavior: smooth` from `index.css`; pass
+`behavior: 'instant'` when you mean a jump.
 
 `SlopeBackground` is a **class component** (uses `requestAnimationFrame` + refs; not hooks by design).
 It renders:
@@ -30,8 +47,10 @@ It renders:
    - `canvasRef` — the **slope/sky/ski-run scene** (drawn in `loop`)
    - `graphCanvasRef` (`gctx`) — the **project constellations / motifs** overlay
 2. A stack of scrollable `<section>`s at `zIndex: 1` holding the real DOM text (the copy). These are
-   tall (`100vh`–`500vh`) with `position: sticky` inner copy, so scrolling **scrubs** each animation.
-3. A fixed `<nav>` and a fixed HUD (`SPD` / `LIP·LZ·AIRBORNE` readout, bottom-left).
+   tall (`100vh`–`640vh`) with `position: sticky` inner copy, so scrolling **scrubs** each animation.
+3. A fixed `<nav>` (desktop: run-line wayfinding dots + WORK + resume chip; mobile: WORK/SKY/CONTACT
+   plus a descent gauge), a fixed HUD (`SPD` / `LIP·LZ·AIRBORNE` readout, bottom-left), and the
+   fixed signature form for the night sky.
 
 ### The scroll narrative (section order = the "run")
 
@@ -43,11 +62,12 @@ and are faded/translated by scroll proximity in `loop`. Order:
 |----------------|------|---------|
 | `Drop in`      | hero | "ISAAC AU" title, scroll cue |
 | `The approach` | 01   | **TDK** ML Intern — SensorFlow / evolutionary TinyML → *lineage-tree* graph |
-| `The lip`      | 02   | **OVIS** Medical — Florence AI nurse → *patient-constellation* + wellness dial |
+| `The lip`      | 02   | **OVIS** Medical — Florence AI nurse → *plexus Dall-sheep companion* fetching Florence's orb |
+| (60vh spacer)  | —    | lets the Ovis motif clear before the LLM copy arrives |
 | `LLM research` | 03   | GUI-grounding code repair + LLM-judge data curation → *grounded-repair* reticle |
 | `DropIn`       | 04   | Real-time IMU mocap → *low-poly plexus rider* ollie |
-| `Takeoff`      | 05   | "Send it" — deceleration hits, launch |
-| `Airborne`     | —    | "35% Lighter" crash-detection result → *sky constellation* |
+| `Takeoff`      | 05   | "All in" — deceleration hits, launch |
+| `Airborne`     | —    | "Software that touches the physical world" → dusk turns to **night**, the four project constellations form, then the signature invite appears |
 | `The landing`  | —    | spacer that triggers the hockey-stop / whiteout impact |
 | `Landing page` | 06   | "Let's talk" contact block (email / GitHub / LinkedIn / resume) |
 
@@ -56,7 +76,7 @@ retimes the scrub. Don't reorder sections without re-checking the `progEl`/`scru
 
 ### The `loop` (rAF) — how the scene is timed
 
-`loop(t)` runs every frame and is the heart of the file (~lines 421–698):
+`loop(t)` runs every frame and is the heart of the file (search for `loop = (t) =>`):
 - Smooths `window.scrollY / maxScroll` into `this.p`; tracks scroll velocity `this.scrollV`.
 - `progEl(el)` → 0..1 progress of an element through viewport center; `this.sm.*` are smoothed copies.
 - Derives phase weights with `smooth(a,b,x)` (smoothstep, defined at bottom of file): `lipT`,
@@ -70,13 +90,16 @@ retimes the scrub. Don't reorder sections without re-checking the `progEl`/`scru
 ### Motifs (the "constellation grammar")
 
 Each project has its own self-contained draw method + a block of module-level constants above the class:
-- **`drawGraph` / `renderGraph` / `buildGraph`** — deterministic aesthetic graphs. TDK = ordered
-  *lineage tree* (`graphA`, dark-on-snow, right of "The approach"). Airborne = wide *sky constellation*
-  (`graphSky`, light-on-sky). Config: seed, generations `G`, per-gen `counts`, `extra` cross-links,
-  `jitter`. A "winner path" is highlighted toward center.
-- **`drawOvis`** (+ `OV_*` consts) — a body-shaped *patient constellation*: nodes/edges of a skeleton,
-  care-category satellites, an AI "check-in conversation" animation (`this.ovisEng`) emitting outcome
-  readings, and a 270° wellness dial. Every 4th reading escalates (`OV_ALERT`).
+- **`drawGraph` / `renderGraph` / `buildGraph`** — TDK's ordered *lineage tree* (`graphA`, dark-on-snow,
+  right of "The approach"; config: seed, generations `G`, per-gen `counts`, `extra`, `jitter`; a
+  "winner path" is highlighted toward center). `drawGraph` also draws the **night sky**: every record in
+  `this.skyRecords` (project seeds + visitor constellations) through `drawConstellation`, plus the
+  signature forming / gather-star animations.
+- **`drawOvis`** (+ `OV_*` palette, `SH_*` consts, `shPoseSheep`/`shBuildMesh`/`shCam` helpers) — a
+  plexus **Dall sheep** (`Ovis` is Latin for sheep) built in DropIn's wireframe-tube grammar. It carves
+  one circular arc on the snow, lifts its head to fetch Florence's orb, and shows a check-in exchange
+  as speech bubbles with care-category halos on its body. Structure is a pure function of scroll `u`;
+  wall-clock drives only ambient life (breathing, ear flick, twinkle).
 - **`drawLLM`** (+ `LG_*` consts) — a reticle walks a crooked GUI wireframe; each landing grounds an
   axis-aligned labeled detection bbox and the element snaps into it (the "grounded repair" story).
 - **`drawDropIn`** (+ `DI_*` consts + `diBuildRider`/`diTransform`/`diMakeCam`) — a **from-scratch 3D
@@ -91,6 +114,9 @@ Each project has its own self-contained draw method + a block of module-level co
   (e.g. "TDK") and a long line ("ML Intern") and scales the short one's font-size so they align. Runs
   on resize via `syncHeadlineWidth`. If you add a project headline, wire up matching refs.
 - **DPR-aware canvases**, capped at 2× (`resize`). Both canvases resize together.
+- **Mobile (`< MB_BP` = 768px)** runs every beat *concurrently*: copy pins in the top ~45% while the
+  motif forms in the bottom band (`cGrow`, `exitFade`, `MB_CONCURRENT`). Section heights differ per
+  breakpoint, so check both when retiming.
 - **Determinism everywhere**: no `Math.random()` at runtime — seeded LCG tables (`this.rand`, and
   per-graph seeds) so the scene is stable across reloads. Keep it that way.
 - Copy text (project blurbs, contact links, stats) lives inline in `render()`. Real content — e.g.
@@ -108,22 +134,37 @@ Each project has its own self-contained draw method + a block of module-level co
 
 ## Not tracked / ignored
 
-`dist/`, `node_modules/`, `.gstack/`, and `contact-preview/` are git-ignored (see `.gitignore`).
+`dist/`, `node_modules/`, `.gstack/`, `contact-preview/`, and `coverage/` are git-ignored, as are the
+parked 3D-world experiment's generated assets (`marble/`, `nightrun/`) and local tool caches
+(`.agents/`, `.impeccable/`, `skills-lock.json`). See `.gitignore`.
 
-## In active development — the signature constellation ending
+The scroll-scrubbed video backdrop experiment (`VideoBackdrop.js`, blockout scripts,
+`notes/world-art-direction.md`) is **parked** on branch `experiment/video-background` and is not on `main`.
 
-The site's closing beat: visitors describe anything and a genAI backend returns a constellation in the
-site's JSON grammar (`{ name, stars:[{x,y,size}], edges:[[i,j]] }`), joining a shared night sky —
-retroactively justifying the whole constellation motif. Design/plan lives in
-`notes/constellation-signature-ending.md`; **read it before working on this feature**.
+## The shared sky — signature constellation ending (shipped)
 
-Status: **active dev, no feature code has landed yet** (nothing in `src/`, no backend). Build order per
-the note: (1) prompt experiment — verify generated layouts render well in the existing star/edge canvas
-vocabulary *before* writing infra; (2) Cloudflare Worker + Turnstile + per-IP rate limit + hard spend
-cap; (3) KV/D1 persistence + a `safe` moderation flag from the same LLM call; (4) wire the form and
-render into `SlopeBackground`'s night-sky section. A zero-server procedural fallback (hash desc → seed)
-is the degraded mode when the budget cap or rate limit trips. Can't ship an API key in a static Vite
-site — the backend is the one hard requirement.
+The run's closing beat: visitors describe anything, and a genAI backend returns a constellation in the
+site's JSON grammar (`{ name, stars:[{x,y,size}], edges:[[i,j]] }`) that joins a shared night sky.
+Design rationale lives in `notes/constellation-signature-ending.md`; deferred ideas are in `TODOS.md`.
+
+- **Worker** (`worker/index.js`) serves `dist/` and routes `/api/sign` (POST) and `/api/sky` (GET) to the
+  Pages-style handlers in `functions/api/`.
+- **`/api/sign` pipeline** (`functions/api/_lib/pipeline.js`, dependency-injected and fully tested). Order
+  is load-bearing — every free check precedes the paid calls, all moderation precedes persistence:
+  Turnstile → per-IP rate limit (KV window) → length/charset → keyword denylist (`denylist.js` +
+  vendored `profanity-words.js`) → KV blocklist → monthly spend cap → LLM generate with a `safe` flag
+  (`prompt.js`, one retry) → `validate.js` → resvg PNG render → vision moderation → KV persist.
+- **Providers**: Anthropic (`anthropic.js`, Haiku by default) is live via `PROVIDER=anthropic`;
+  Workers AI (`workersai.js`) is the free fallback. Secrets: `ANTHROPIC_API_KEY`, optional
+  `TURNSTILE_SECRET` (set via `wrangler secret put`).
+- **`/api/sky`** lists `constellation:*` records, edge-cached 5 min. The client merges the visitor's own
+  signatures from `localStorage` until the server list catches up.
+- **Degraded mode**: infra failures (spend cap, generation or moderation outage) fall back to a
+  hash-seeded procedural figure client-side, shown but not persisted.
+- **Known gap**: the form never sends a Turnstile token, so setting `TURNSTILE_SECRET` would reject
+  every submission until the widget is wired in.
+- `scripts/kill-constellation.sh` is the admin panel: it deletes a record, blocklists its description
+  hash so identical resubmissions bounce, and purges the `/api/sky` edge cache.
 
 ## Design Context
 
