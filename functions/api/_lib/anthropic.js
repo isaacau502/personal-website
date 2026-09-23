@@ -37,7 +37,7 @@ export function makeVisionCheck(env) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const model = env.VISION_MODEL || 'claude-haiku-4-5';
   return async function visionCheck(pngBytes) {
-    const data = btoa(String.fromCharCode(...new Uint8Array(pngBytes)));
+    const data = bytesToBase64(pngBytes);
     const response = await client.messages.create({
       model,
       max_tokens: 256,
@@ -53,4 +53,15 @@ export function makeVisionCheck(env) {
     const text = response.content.find((b) => b.type === 'text')?.text ?? '';
     return JSON.parse(text);
   };
+}
+
+// Chunked so a larger PNG never blows the call-argument limit that
+// `String.fromCharCode(...bytes)` hits somewhere past ~64k bytes.
+function bytesToBase64(bytes) {
+  const u8 = new Uint8Array(bytes);
+  let bin = '';
+  for (let i = 0; i < u8.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
 }

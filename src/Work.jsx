@@ -122,12 +122,20 @@ const FIG_LIGHT = { star: '38,57,89', glow: '40,86,158', edge: '96,116,146', lab
 // ---- one constellation figure (its own canvas + twinkle loop) ----
 class Figure extends Component {
   constructor(props) { super(props); this.ref = createRef(); this._raf = 0; }
-  componentDidMount() { this.setup(); }
+  componentDidMount() {
+    this.setup();
+    // off-screen plates don't need a live twinkle — pause the loop until they scroll in
+    if (typeof IntersectionObserver !== 'undefined' && this.ref.current) {
+      this._io = new IntersectionObserver(([e]) => { this._visible = e.isIntersecting; if (this._visible) this.resume(); });
+      this._io.observe(this.ref.current);
+    }
+  }
   componentDidUpdate(prev) {
     if (prev.theme !== this.props.theme || prev.reduced !== this.props.reduced) { this.teardown(); this.setup(); }
   }
-  componentWillUnmount() { this.teardown(); }
+  componentWillUnmount() { this.teardown(); if (this._io) { this._io.disconnect(); this._io = null; } }
   teardown() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = 0; if (this._ro) { this._ro.disconnect(); this._ro = null; } }
+  resume() { if (this._loop && !this._raf) this._raf = requestAnimationFrame(this._loop); }
   setup() {
     const cv = this.ref.current;
     if (!cv) return;
@@ -147,12 +155,17 @@ class Figure extends Component {
       drawConstellation(ctx, this.props.fig.stars, this.props.fig.edges, panel, { t, alpha, grow: 1, palette });
     };
     paint(0);
+    this._loop = null;
     if (this.props.reduced) {
       // static: repaint only when the box resizes (DPR / layout changes)
       if (typeof ResizeObserver !== 'undefined') { this._ro = new ResizeObserver(() => paint(0)); this._ro.observe(cv); }
     } else {
-      const loop = (ms) => { paint(ms / 1000); this._raf = requestAnimationFrame(loop); };
-      this._raf = requestAnimationFrame(loop);
+      this._loop = (ms) => {
+        paint(ms / 1000);
+        // stop scheduling once scrolled out; the observer resumes on re-entry
+        this._raf = this._visible === false ? 0 : requestAnimationFrame(this._loop);
+      };
+      this._raf = requestAnimationFrame(this._loop);
     }
   }
   render() { return <canvas className="fig" ref={this.ref} aria-hidden="true" />; }
@@ -211,7 +224,8 @@ export default class Work extends Component {
     if (c) {
       const x = c.getContext('2d');
       let stars = [];
-      const col = () => getComputedStyle(document.documentElement).getPropertyValue('--tick').trim() || 'rgba(120,140,170,0.25)';
+      // --tick is declared on .wk (the canvas's parent), not on :root
+      const col = () => getComputedStyle(c.parentElement).getPropertyValue('--tick').trim() || 'rgba(120,140,170,0.25)';
       const rand = (s) => () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
       const build = () => {
         const r = rand(20260707); stars = [];
@@ -219,9 +233,12 @@ export default class Work extends Component {
         for (let i = 0; i < n; i++) stars.push({ x: r(), y: r(), s: 0.4 + r() * 1.1 });
       };
       const draw = () => {
-        c.width = window.innerWidth; c.height = window.innerHeight;
-        x.clearRect(0, 0, c.width, c.height); x.fillStyle = col();
-        for (const st of stars) { x.globalAlpha = 0.3 + st.s * 0.3; x.beginPath(); x.arc(st.x * c.width, st.y * c.height, st.s, 0, 7); x.fill(); }
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const w = window.innerWidth, h = window.innerHeight;
+        c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+        x.setTransform(dpr, 0, 0, dpr, 0, 0);
+        x.clearRect(0, 0, w, h); x.fillStyle = col();
+        for (const st of stars) { x.globalAlpha = 0.3 + st.s * 0.3; x.beginPath(); x.arc(st.x * w, st.y * h, st.s, 0, 7); x.fill(); }
         x.globalAlpha = 1;
       };
       this._drawStars = draw;

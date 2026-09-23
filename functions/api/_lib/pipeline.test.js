@@ -89,6 +89,7 @@ describe('sign pipeline — free checks run before paid calls', () => {
     const result = await createSignPipeline(deps)({ ...INPUT, description: 'the twin towers' });
     expect(result).toMatchObject({ ok: false, status: 400, error: 'rejected' });
     expect(deps.generate).not.toHaveBeenCalled();
+    expect(deps.kv.get).not.toHaveBeenCalled(); // no I/O either — it precedes the KV blocklist read
   });
 
   it('denylist tolerates punctuation/spacing ("9/11") and honors word boundaries', async () => {

@@ -2,7 +2,7 @@
 // testable without Cloudflare bindings or the Anthropic API. The adapters in
 // sign.js wire the real deps; pipeline.test.js wires mocks.
 //
-//   1 turnstile → 2 rate limit → 3 length/charset → 4 blocklist → 5 spend
+//   1 turnstile → 2 rate limit → 3 length/charset → 4 denylist + blocklist → 5 spend
 //   → 6 LLM generate (+safe flag, one retry on malformed)
 //   → 7 validate/normalize → 8 render PNG (resvg) → 9 vision check
 //   → 10 write record (MUST succeed) → 11 bump spend (best-effort) → respond
@@ -41,16 +41,17 @@ export function createSignPipeline(deps) {
       return { ok: false, status: 400, error: desc.error };
     }
 
-    // 4. Blocklist — one KV read; a cheap tripwire against lazy resubmission
-    const hash = await sha256Hex(desc.value.toLowerCase());
-    if (await deps.kv.get(`blocklist:${hash}`)) {
+    // 4a. Keyword denylist — free, deterministic, no I/O, so it runs before the
+    // KV read. Catches known-bad terms (atrocities, hate symbols, coded refs)
+    // before any paid LLM call; the generation `safe` flag is the semantic
+    // backstop for the rest.
+    if (denylistHit(desc.value)) {
       return { ok: false, status: 400, error: 'rejected' };
     }
 
-    // 4b. Keyword denylist — free, deterministic, no I/O. Catches known-bad
-    // terms (atrocities, hate symbols, coded refs) before any paid LLM call;
-    // the generation `safe` flag is the semantic backstop for the rest.
-    if (denylistHit(desc.value)) {
+    // 4b. Blocklist — one KV read; a cheap tripwire against lazy resubmission
+    const hash = await sha256Hex(desc.value.toLowerCase());
+    if (await deps.kv.get(`blocklist:${hash}`)) {
       return { ok: false, status: 400, error: 'rejected' };
     }
 

@@ -31,8 +31,18 @@ export async function onRequestPost(context) {
   } catch {
     return json({ error: 'bad-request' }, 400);
   }
+  // JSON.parse happily returns null / a number / an array — those are not a request
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return json({ error: 'bad-request' }, 400);
+  }
 
-  const seams = pickSeams(env);
+  let seams;
+  try {
+    seams = pickSeams(env);
+  } catch (err) {
+    console.error('sign provider misconfigured', err);
+    return json({ error: 'internal' }, 500);
+  }
   const sign = createSignPipeline({
     verifyTurnstile: makeVerifyTurnstile(env),
     rateLimit: makeRateLimit(env),

@@ -754,9 +754,11 @@ class SlopeBackground extends Component {
     // settles, and snap the smoothed progress so we don't scrub the whole run
     const jump = { '#sky': 5, '#contact': 6 }[window.location.hash];
     if (jump !== undefined) {
-      setTimeout(() => {
+      this._jumpTimer = setTimeout(() => {
         const y = this.navTargets[jump] || 0;
-        window.scrollTo(0, y);
+        // explicit instant: index.css sets scroll-behavior:smooth, which a bare
+        // scrollTo inherits — that would animate through the whole run instead of jumping
+        window.scrollTo({ top: y, behavior: 'instant' });
         const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
         this.p = this.pRaw = Math.min(1, y / maxScroll);
       }, 60);
@@ -785,6 +787,7 @@ class SlopeBackground extends Component {
 
   componentWillUnmount() {
     cancelAnimationFrame(this.raf);
+    clearTimeout(this._jumpTimer);
     window.removeEventListener('resize', this.resize);
   }
 
@@ -1081,7 +1084,7 @@ class SlopeBackground extends Component {
     if (impact > 0.001) {
       ctx.save();
       ctx.translate(shake * 0.5, shake);
-      this.drawImpact(ctx, W, H, impact, fullWhite, t);
+      this.drawImpact(ctx, W, H, impact, fullWhite);
       ctx.restore();
     }
 
@@ -2189,7 +2192,7 @@ class SlopeBackground extends Component {
     ctx.restore();
   }
 
-  drawImpact(ctx, W, H, impact, fullWhite, t) {
+  drawImpact(ctx, W, H, impact, fullWhite) {
     // visceral impact: explosive radial burst from the skis + heavy snow splatting the camera lens
     if (impact > 0.001) {
       const startX = W * 0.5;
@@ -2568,12 +2571,14 @@ class SlopeBackground extends Component {
             maxLength={100}
             placeholder="describe anything"
             aria-label="Describe your constellation"
+            enterKeyHint="send"
+            autoComplete="off"
             onKeyDown={this.onSignatureKey}
           />
-          <div ref={this.sigStatusRef} style={{ fontSize: 11, letterSpacing: '0.1em', color: 'rgba(201,214,226,0.4)', transition: 'color 0.3s ease' }}>press enter · it stays here for everyone after you</div>
+          <div ref={this.sigStatusRef} aria-live="polite" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'rgba(201,214,226,0.4)', transition: 'color 0.3s ease' }}>press enter · it stays here for everyone after you</div>
         </div>
 
-        <div ref={this.hudRef} style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
+        <div ref={this.hudRef} aria-hidden="true" style={{ position: 'fixed', left: 24, bottom: 22, zIndex: 2, fontFamily: mono, fontSize: 12, letterSpacing: '0.18em', color: '#33455c', display: 'flex', gap: 22 }}>
           <span ref={this.spdRef}>SPD 00 KM/H</span>
           <span ref={this.distRef}>LIP 400 M</span>
         </div>
