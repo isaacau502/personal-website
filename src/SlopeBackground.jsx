@@ -2013,7 +2013,7 @@ class SlopeBackground extends Component {
       if (frac > 0.98) {
         gctx.font = `${Math.max(9, W * 0.0072)}px ui-monospace, Menlo, monospace`;
         gctx.fillStyle = `rgba(${OV_EDGE},${(0.8 * A).toFixed(3)})`;
-        gctx.fillText('p < 0.01 · 128 PAIRED TESTS · ZERO-SHOT', mob ? gx : gx + W * 0.165, mob ? gy + gh + 20 : hy);
+        gctx.fillText('p < 0.01 · 111 SAMPLES · ZERO-SHOT', mob ? gx : gx + W * 0.165, mob ? gy + gh + 20 : hy);
       }
     }
   }
@@ -2317,8 +2317,8 @@ class SlopeBackground extends Component {
                   <span ref={this.medRef} style={{ fontSize: mob ? 'clamp(18px, 5.5vw, 30px)' : 'clamp(18px, 2.6vw, 36px)', whiteSpace: 'nowrap' }}>Medical Solutions</span>
                 </h2>
                 <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
-                  ? <>Florence, our AI nurse, scores a daily cancer-patient check-in and flags trouble before the ER. Piloted at HKU.</>
-                  : <>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Raised $100k in SAFE funding and led a 5-person team, piloting with oncologists at HKU.</>}</p>
+                  ? <>Florence, our AI nurse, scores a daily cancer-patient check-in and flags trouble before the ER. Built with HKU oncologists.</>
+                  : <>Co-founded Ovis to put a daily voice between cancer patients and their care team. Florence, our AI nurse, turns each conversation into a wellness score and flags what needs attention before it becomes an ER visit. Raised $100k in SAFE funding and led a 5-person team with HKU oncologists through IRB submission for a clinical pilot.</>}</p>
                 <a href="https://app.ovismedical.com" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: mob ? 'flex-start' : 'flex-end' }}>TRY THE APP<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
               </div>
             </div>
@@ -2338,7 +2338,7 @@ class SlopeBackground extends Component {
               </h2>
               <p style={{ margin: 0, fontFamily: mono, fontSize: mob ? 12 : 14, lineHeight: mob ? 1.5 : 1.7, color: '#33455c' }}>{mob
                 ? <>Frozen GUI-grounding models lifted VLM code-repair fidelity +29% on Angular, zero-shot. An LLM judge distilled 2M+ rows to 50k gold.</>
-                : <>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, 128 paired tests). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</>}</p>
+                : <>Ground the model in structure. Frozen GUI-grounding models injected into a VLM code-repair pipeline&mdash;zero-shot, no fine-tuning&mdash;lifted visual fidelity +29% on Angular (p&lt;0.01, DesignBench&rsquo;s 111-sample repair task). An LLM judge sieved 2M+ clinical entries into 50k gold rows: +15% medical reasoning after LoRA SFT.</>}</p>
               <a href="/gui-grounded-repair.pdf" target="_blank" rel="noopener noreferrer" className="beat-cta" style={{ alignSelf: 'flex-start' }}>READ THE PAPER<span className="cta-grooves">&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;&#8214;</span><span className="cta-arrow">&rarr;</span></a>
             </div>
             </div>
@@ -2392,7 +2392,7 @@ class SlopeBackground extends Component {
             style={{ boxSizing: 'border-box', minHeight: '100vh', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: '14vh 8vw', textAlign: 'center', position: 'relative' }}
           >
             <div data-reveal="1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, willChange: 'transform, opacity' }}>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#28569e' }}>OPEN TO FULL-TIME · NEW-GRAD 2027</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: '0.35em', color: '#28569e' }}>INCOMING SWE @ GOOGLE · 2027</div>
               <h2 style={{ margin: 0, fontSize: 'clamp(40px, 12vw, 150px)', lineHeight: 0.9, textTransform: 'uppercase' }}>Let&rsquo;s talk</h2>
               <div style={{ width: 48, height: 1.5, background: '#c8d4e0' }} />
               <p style={{ margin: 0, maxWidth: 480, fontFamily: mono, fontSize: 14, lineHeight: 1.7, color: '#33455c' }}>Got a project, a question, or just want to say hey&mdash;I&rsquo;d love to hear from you.</p>

@@ -81,10 +81,10 @@ const GSD = { // a checkmark, fed by chunked tasks
 const MARK = { ship: '●', res: '○', sys: '◇', wip: '◌' };
 
 const HERO = {
-  fig: OVIS, kind: 'ship', tag: 'PILOTED', name: 'Ovis Medical',
+  fig: OVIS, kind: 'ship', tag: 'CO-FOUNDED', name: 'Ovis Medical',
   ctx: 'Co-founder · Tech Lead — 2024–2026',
-  desc: 'A daily AI voice between cancer patients and their care team — check-ins, symptom triage, and a wellness signal the clinic can act on. $100k SAFE raised; 5-person team.',
-  stat: 'Clinical pilot', read: 'oncology · HKU', stack: 'LLMs · TTS · React · AWS',
+  desc: 'A daily AI voice between cancer patients and their care team — check-ins, symptom triage, and a wellness signal the clinic can act on. Led a 5-person team.',
+  stat: '$100k', read: 'SAFE raised · IRB submitted with HKU oncologists', stack: 'LLMs · TTS · React · AWS',
   links: [{ t: 'TRY IT', href: 'https://app.ovismedical.com' }],
 };
 
@@ -390,8 +390,8 @@ export default class Work extends Component {
               <h1 className="disp">WORK</h1>
               <p className="sub">Every project as a constellation &mdash; systems that touch the physical world: sensors, patients, riders, real-time streams, tight budgets. The same figures you rode past on the run, charted.</p>
               <div className="hud">
-                <span className="avl"><i></i>AVAILABLE</span>
-                <span>FULL-TIME · <b>NEW-GRAD 2027</b></span>
+                <span className="avl"><i></i>INCOMING SWE @ GOOGLE</span>
+                <span>AI CATALYST · <b>JUN 2027</b></span>
                 <span>CMU · <b>BS CS (ML)</b></span>
                 <span>PITTSBURGH, PA</span>
               </div>
