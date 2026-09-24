@@ -1,5 +1,6 @@
 import SlopeBackground from './SlopeBackground.jsx';
 import Work from './Work.jsx';
+import Borrow from './Borrow.jsx';
 
 // Path-based split: "/" is the cinematic run, "/work" is the professional
 // reference. Full-page navigation between them (plain <a href>), so the Worker
@@ -7,6 +8,7 @@ import Work from './Work.jsx';
 function App() {
   const path = window.location.pathname.replace(/\/+$/, '');
   if (path === '/work') return <Work />;
+  if (path === '/borrowmystuff') return <Borrow />;
   return <SlopeBackground />;
 }
 

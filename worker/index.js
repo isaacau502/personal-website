@@ -25,6 +25,13 @@ export default {
         headers: { 'content-type': 'application/json' },
       });
     }
+    if (pathname.replace(/\/+$/, '') === '/borrowmystuff') {
+      // unlisted page: shareable by link, kept out of search results
+      const asset = await env.ASSETS.fetch(request);
+      const res = new Response(asset.body, asset);
+      res.headers.set('x-robots-tag', 'noindex, nofollow');
+      return res;
+    }
     return env.ASSETS.fetch(request);
   },
 };

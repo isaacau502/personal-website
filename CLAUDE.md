@@ -166,6 +166,21 @@ Design rationale lives in `notes/constellation-signature-ending.md`; deferred id
 - `scripts/kill-constellation.sh` is the admin panel: it deletes a record, blocklists its description
   hash so identical resubmissions bounce, and purges the `/api/sky` edge cache.
 
+## Borrow my stuff (`/borrowmystuff`, unlisted)
+
+`src/Borrow.jsx` is a plain lending list, shared by link only. It isn't linked anywhere and isn't in
+the sitemap, and the Worker sends `x-robots-tag: noindex` for this route. It only renders
+`src/borrow/items.json`, which a local agent regenerates from Isaac's notes txt. Shape:
+
+```json
+{ "updated": "YYYY-MM-DD",
+  "items": [ { "name": "Cordless drill", "cat": "tools", "note": "optional", "out": "Alex, back ~Oct 3" } ] }
+```
+
+`cat` groups the list (missing means `misc`). `out` is set only while the item is lent out, as free
+text naming who has it and when it comes back, and is omitted when the item is home. `name` must be
+unique. Changes go live only through a deploy, so pushing `main` still needs Isaac's go-ahead.
+
 ## Design Context
 
 Strategic design context lives in `PRODUCT.md` (read it before design work). In short:
